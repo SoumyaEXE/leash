@@ -44,3 +44,13 @@ const stop = leash.onActivity(vault, (e) => console.log(e.kind, e.errorName ?? "
 | Helpers | `friendlyError`, `reasonHash`, `explorerTx`, `toBaseUnits` / `fromBaseUnits`, `buildMandateMessage` |
 
 Error names match `programs/leash/src/errors.rs` (codes 6000+); see `src/errors.ts`.
+
+Security notes (details and open items in the root `SECURITY.md`):
+
+- `reason` is published in plaintext as an SPL Memo (`leash:reason:…`, max 180 chars), even on refused payments.
+  Only its sha256 is used by the program. Don't put secrets in it.
+- Off-chain checks here are UX: the program re-checks everything. `resolveAuthorization` picks the payee entry, else
+  the first unrevoked, unexpired mandate for that payee.
+- The activity feed treats a failed transaction that mentions the vault and logs a Leash error as "blocked". Anyone
+  can send such a transaction, so treat feed entries (and their reason text) as untrusted until the open SDK item
+  is fixed.

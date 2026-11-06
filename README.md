@@ -172,7 +172,7 @@ Public devnet rate-limits hard. Put a dedicated devnet RPC (Helius/Triton free t
   tools; role instructions come back as "The answer could not be found", queries over ~400 characters returned
   HTTP 500, and the same question sometimes fails once and then works. We phrase every prompt as a question, retry
   identical questions, and build the agents the way Bankrbot works: model text → command parser → payment. You.com's
-  chat endpoint with tool calling (Inference Router) needs purchased credits, so it stays opt-in.
+  chat endpoint with tool calling (Inference Router) needs purchased credits, so we didn't use it.
 - **x402 v2 moved everything into headers.** `PAYMENT-REQUIRED` (base64 JSON) on the 402, `PAYMENT-SIGNATURE` on
   the retry, `PAYMENT-RESPONSE` on success, replacing v1's `X-PAYMENT` / `X-PAYMENT-RESPONSE`. We encode with
   `@x402/core/http` instead of hand-rolling, and the server checks each proof against the terms *it* issued for that
@@ -221,7 +221,8 @@ the RareSkills write-up on Ed25519 instruction introspection · [x402](https://g
     history, no tool calling). It decodes the S1 post, answers the S2 "who do I pay" question, writes the Research
     API summary, and plays the Arena's Warden.
   - **Search API**: headlines for the Market Data API.
-  - The Inference Router (chat with tools) is wired as an opt-in provider but not used: it needs purchased credits.
+  - Not used: the Inference Router (chat with tool calling) needs purchased credits. `packages/llm` has a client
+    for it, but nothing calls it.
 
 Part of the code was written before the official start; see [Timeline disclosure](#timeline-disclosure).
 
