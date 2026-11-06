@@ -34,13 +34,66 @@ const tx = await leash.buildOwnerTx(owner, { type: "approveRequest", vault, requ
 const stop = leash.onActivity(vault, (e) => console.log(e.kind, e.errorName ?? "", e.reason ?? ""));
 ```
 
+### Signed mandates (owner signs readable text, agent redeems)
+
+The owner signs a plain-text message with the wallet's `signMessage` (no transaction, no SOL). The program
+rebuilds the exact same bytes from the redeem instruction and its accounts, so what the wallet shows is what is
+enforced. The message names the program, cluster, vault (and when it was opened), payee, mint, amounts, expiry,
+nonce and intent, so it can't be replayed on another cluster, program or re-opened vault.
+
+```ts
+import { encodeSignedMandate, mandateContextFor, mandateMessageText, signMandate, toBaseUnits } from "@leash/sdk";
+
+// owner, in the browser
+const v = await leash.getVault(vault);
+const ctx = mandateContextFor(v, leash.programId, "devnet");
+const terms = {
+  payee: newApi, maxTotal: toBaseUnits("2.00"), maxPerTx: toBaseUnits("0.50"),
+  expiresAt: Math.floor(Date.now() / 1000) + 7 * 86400,
+  nonce: v.mandateSeq,                          // single use; bumpMandateSeq cancels unredeemed ones
+  intent: "Weekly wallet-flow reports",         // 1-100 printable ASCII
+};
+console.log(mandateMessageText(ctx, terms));    // exactly what Phantom will show
+const json = encodeSignedMandate(await signMandate(wallet, ctx, terms)); // { publicKey, signMessage }
+
+// agent, with its own key: [Ed25519 verify, redeem_signed_mandate] in one tx
+const r = await agentLeash.redeemSignedMandate(json);
+if (r.ok) console.log("mandate", r.mandate.toBase58(), r.explorerUrl);
+```
+
+### What changed with the rolling-window program
+
+- `getVault` returns `spent24h` / `autonomous24h` (rolling 24h from hourly buckets), `createdAt`,
+  `enforceTripwire`, `cosignWindowThreshold`, `openRequests`... `windowStart` / `spentInWindow` are kept as
+  deprecated aliases (`spentInWindow === spent24h`).
+- `Policy` has two required fields, `cosignWindowThreshold` and `enforceTripwire`. Use `policyOf(vault)` to
+  change one field without resetting the others.
+- Spend requests are closed when approved, rejected or closed after expiry. `listRequests` lists open ones;
+  `getRequest` still answers `approved` / `rejected` / `expired` for closed ones (from history, `closed: true`).
+- Guarded spends keep preflight on. A guarded refusal succeeds in simulation and lands with `PaymentBlocked`;
+  the result carries `strike` (unauthorized attempt) or not (cap / budget / expiry).
+- The activity feed only counts a failure when a top-level Leash payment instruction for *this* vault failed with
+  a Leash error code, and only shows events emitted by the Leash program for this vault.
+
 | | |
 |---|---|
 | PDAs | `vaultPda`, `payeePda`, `mandatePda`, `requestPda` |
-| Reads | `getVault` (with token balance), `listPayees`, `listMandates`, `listRequests`, `getRequest` |
-| Agent | `spend({ mode: "strict" \| "guarded" })`, `requestSpend`, `redeemSignedMandate`, `buildSpendTxForFeePayer` (x402 facilitator pays fees) |
-| Owner | `initializeVault`, `ownerAction(action)`, `buildOwnerTx(owner, action)` |
-| Events | `onActivity` (logs subscription + polling fallback), `recentActivity`, `parseLeashEvents(logs, programId)` |
-| Helpers | `friendlyError`, `reasonHash`, `explorerTx`, `toBaseUnits` / `fromBaseUnits`, `buildMandateMessage` |
+| Reads | `getVault` (with token balance and rolling 24h sums), `listPayees`, `listMandates`, `listRequests` (open), `getRequest` (open or closed), `resolveAuthorization(vault, payee, mandate?, amount?)` |
+| Agent | `spend({ mode: "strict" | "guarded" })`, `requestSpend` (closes expired requests when all 8 slots are taken), `redeemSignedMandate`, `closeExpiredRequests`, `buildSpendTxForFeePayer` (x402 facilitator pays fees) |
+| Owner | `initializeVault`, `ownerAction(action)`, `buildOwnerTx(owner, action)`; actions include `bumpMandateSeq`, `closeMandate`, `closeRequest`, `closeVault` |
+| Mandates | `mandateMessageText` / `buildMandateMessage`, `signMandate`, `encodeSignedMandate` / `decodeSignedMandate`, `mandateTermsError` |
+| Events | `onActivity` (logs subscription + polling fallback), `recentActivity`, `activityFromTransaction`, `parseLeashEvents(logs, programId)` |
+| Helpers | `friendlyError`, `parseLeashErrorFromLogs(logs, programId)`, `reasonHash`, `explorerTx`, `toBaseUnits` / `fromBaseUnits`, `policyOf`, `rollingSum` |
 
-Error names match `programs/leash/src/errors.rs` (codes 6000+); see `src/errors.ts`.
+Error names match `programs/leash/src/errors.rs` (codes 6000-6032); see `src/errors.ts`.
+
+## Tests
+
+```
+pnpm --filter @leash/sdk test
+```
+
+`node:test` via tsx. `test/idl.test.ts` checks every discriminator, account meta, instruction arg, account and event
+layout against `src/idl/leash.json` (copied from `anchor build` by `pnpm sdk:sync-idl`) using an independent
+IDL-driven codec. `test/mandate.test.ts` uses the program's own message vectors. CI (`.github/workflows/ci.yml`)
+also fails if the committed IDL differs from what the program builds.
