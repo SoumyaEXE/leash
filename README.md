@@ -4,6 +4,25 @@
 >
 > Built at the **MLH Solana Hackathon** (Nov 6–8, 2026). Devnet only. Not audited.
 
+## Timeline disclosure
+
+We started writing code **before the official start**, and we want judges to have the exact facts:
+
+| Event | Time (Nov 6, 2026) |
+|---|---|
+| Idea, research and planning notes (not in this repo) | written before the event (Nov 5) |
+| First commit (`8d690aa`) | **19:57 IST** (14:27 UTC) |
+| Leash program deployed to devnet ([`Cck8fp…`](https://explorer.solana.com/address/Cck8fpFodqfGqKXk1UkhVbYoDXMEqk3vAshB4e3G5SAe?cluster=devnet)) | **20:53 IST** (15:23 UTC) |
+| First devnet demo transactions (linked below) | from **20:55 IST** (15:25 UTC) |
+| **Official hackathon start** | **22:30 IST** (17:00 UTC, 12:00 PM EST) |
+
+Every commit timestamped before **2026-11-06 17:00 UTC**, including this disclosure, and every onchain transaction
+before that time was made **before kickoff**. Work after that time was done during the event. We have not rewritten
+or re-dated any history; the git log and the onchain timestamps are the record. We are disclosing this here and in our
+MLH submission, and we'll follow the organizers' ruling on eligibility.
+
+## What it is
+
 AI agents now hold wallets. Their decisions come from a model, and models can be steered by anything they read: a
 tweet, a web page, a "memory", a Morse-code puzzle. Every real agent drain so far had the same root cause: **the
 system treated the model's output as permission to move money.**
@@ -141,8 +160,7 @@ All UI code is our own.
 - **Claude Code** wrote and reviewed code during the hackathon.
 - **You.com APIs** (Answer + Search) power the demo agents, the Arena's Warden, and the research API.
 
-The idea and planning notes predate the event; all code in this repository was written from Nov 6, 2026 onward (see
-the commit history).
+Part of the code was written before the official start; see [Timeline disclosure](#timeline-disclosure).
 
 ## What's next
 
