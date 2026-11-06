@@ -33,7 +33,7 @@ Specs live in the planning kit (`../leash-solana-hackathon/docs/`). Anything her
 - Registered for the MLH Solana Hackathon (Nov 6-8) on Nov 6. No sponsor offers or sponsor Agent Skills listed.
 - Owner chose to start coding before the official T+0 (10:30 PM IST); commit timestamps reflect that.
 
-### UI: nestjs.com look (owner's call)
+### UI: nestjs.com look (owner's call) — superseded by the Cryonix redesign, see "Docs pass" below
 - The owner wants the nestjs.com visual style. `nestjs/nestjs.com` is MIT; its UI components live in the
   `nestjs/marketing-ui` submodule, which has **no license** (all rights reserved). So:
   - Reused (MIT, credited): theme tokens from `nestjs.com/app/index.css` — Manrope + Geist Mono, `#050303`
@@ -85,3 +85,21 @@ Specs live in the planning kit (`../leash-solana-hackathon/docs/`). Anything her
 - 45/45 LiteSVM tests pass (sBPFv0 build). SDK layout test: 58/58 checks vs the generated IDL.
 - Public devnet RPC rate-limits hard (429s during setup). Use a free Helius/Triton devnet key in `SOLANA_RPC_URL`
   before recording.
+
+## 2026-11-06 — Docs pass (README, SECURITY.md, package READMEs)
+
+- **UI direction changed** from the nestjs.com look to the free Framer template Cryonix (Pixcut Studio) in commit
+  `b92b46c`. Credits are in the root README ("Design credits") and `apps/web/README.md`; the nestjs notes above are
+  history only.
+- **"Rolling 24h cap" is not what the program does.** `commit_vault_counters` resets the window 24h after
+  `window_start`, so it is a fixed window (2x the cap is possible at the boundary). Docs say "24h window cap" until
+  T3 (`docs/11`) lands; the Rust doc comments on `Vault.daily_cap` and in `check_spend` still say "rolling".
+- **`LLM_PROVIDER=youcom-router` does nothing yet.** `llmProvider()` reads it, but no caller switches on it, so every
+  model call goes to the Answer API. The note under "AI provider" above overstated this.
+- **Claims fixed per `docs/11` section 7:** tagline is "won't move anywhere you didn't sign for"; Bankrbot executed
+  Grok's reply; Lobstar: a per-payment cap would have stopped it; V12: fixed in the Aug 18 releases, clients now cap
+  $1/payment; no "same root cause" line; Swig and Solana Payment Channels credited; mandates are "AP2-style".
+- **`SECURITY.md`** is the single list of known open issues (T1-T13, tests/CI, SDK, off-chain). Every row is "open"
+  until the fix is on `main` and, for program items, deployed to devnet. Update the row when that happens.
+- **Split-screen "same output"** is one model call shared by both agents (in-flight dedupe + 10 min cache); the README
+  states it.
