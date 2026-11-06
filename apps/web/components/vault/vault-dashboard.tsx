@@ -14,7 +14,7 @@ import {
   type RequestState,
   type VaultState,
 } from "@leash/sdk";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ENV, explorerAddrUrl, explorerTxUrl, short } from "@/lib/env";
 import { demoVault, dialToUrl } from "@/lib/leash";
 import { SectionLabel } from "../motion/section-label";
@@ -125,42 +125,61 @@ export function VaultDashboard() {
   const [requests, setRequests] = useState<RequestState[]>([]);
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const hasVault = useRef(false);
   const [, force] = useState(0);
 
+  // Each section loads on its own: one rate-limited RPC call (public devnet 429s) must not blank the dashboard.
   const load = useCallback(async () => {
-    try {
-      const [v, p, m, r, a] = await Promise.all([
-        client.getVault(vaultAddr),
-        client.listPayees(vaultAddr),
-        client.listMandates(vaultAddr),
-        client.listRequests(vaultAddr),
-        client.recentActivity(vaultAddr, 40),
-      ]);
-      setVault(v);
-      setPayees(p);
-      setMandates(m);
-      setRequests(r.sort((x, y) => Number(y.seq - x.seq)));
-      setActivity(a);
+    const [v, p, m, r] = await Promise.allSettled([
+      client.getVault(vaultAddr),
+      client.listPayees(vaultAddr),
+      client.listMandates(vaultAddr),
+      client.listRequests(vaultAddr),
+    ]);
+    if (v.status === "fulfilled") {
+      hasVault.current = true;
+      setVault(v.value);
       setError(null);
-    } catch (e) {
-      setError((e as Error).message);
+    } else if (!hasVault.current) {
+      // only an error if we have nothing to show; later hiccups keep the last good state
+      setError((v.reason as Error)?.message ?? String(v.reason));
+    }
+    if (p.status === "fulfilled") setPayees(p.value);
+    if (m.status === "fulfilled") setMandates(m.value);
+    if (r.status === "fulfilled") setRequests(r.value.sort((x, y) => Number(y.seq - x.seq)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client, vaultAddr]);
+
+  // History once (and every 30s); live updates arrive through onActivity.
+  const loadHistory = useCallback(async () => {
+    try {
+      const a = await client.recentActivity(vaultAddr, 25);
+      setActivity((cur) => {
+        const seen = new Set(a.map((x) => `${x.sig}:${x.kind}`));
+        return [...cur.filter((x) => !seen.has(`${x.sig}:${x.kind}`)), ...a].sort((x, y) => y.ts - x.ts).slice(0, 60);
+      });
+    } catch {
+      // keep what we have; the live feed still works
     }
   }, [client, vaultAddr]);
 
   useEffect(() => {
     void load();
+    void loadHistory();
     const off = client.onActivity(vaultAddr, (e) => {
       setActivity((a) => (a.some((x) => x.sig === e.sig && x.kind === e.kind) ? a : [e, ...a].slice(0, 60)));
       void load();
     });
-    const iv = setInterval(() => void load(), 5000);
+    const hist = setInterval(() => void loadHistory(), 30_000);
+    const iv = setInterval(() => void load(), 8000);
     const tick = setInterval(() => force((n) => n + 1), 1000);
     return () => {
       off();
       clearInterval(iv);
+      clearInterval(hist);
       clearInterval(tick);
     };
-  }, [client, vaultAddr, load]);
+  }, [client, vaultAddr, load, loadHistory]);
 
   const labels = useMemo(() => new Map(payees.map((p) => [p.payee.toBase58(), p.label])), [payees]);
   const reasons = useMemo(() => {
@@ -500,7 +519,7 @@ export function VaultDashboard() {
                 <input className={inputCls} value={np.budget} onChange={(e) => setNp({ ...np, budget: e.target.value })} />
               </Field>
               <PrimaryButton size="md" disabled={!np.address || !np.label || !!pending} onClick={() => void addPayee()}>
-                Add payee
+                <span className="whitespace-nowrap">Add payee</span>
               </PrimaryButton>
             </div>
           </Card>

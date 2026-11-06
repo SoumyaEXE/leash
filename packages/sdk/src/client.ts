@@ -178,8 +178,9 @@ export class LeashClient implements ILeashClient {
       const bal = await this.connection.getTokenAccountBalance(vaultAta, this.commitment);
       balance = BigInt(bal.value.amount);
       decimals = bal.value.decimals;
-    } catch {
-      // ATA missing (shouldn't happen: created in initialize_vault)
+    } catch (e) {
+      // Only a missing token account means 0. An RPC error (e.g. 429) must not look like an empty vault.
+      if (!/could not find account|not a Token account|Invalid param/i.test((e as Error)?.message ?? "")) throw e;
     }
     return {
       address: vault,
@@ -704,16 +705,24 @@ export class LeashClient implements ILeashClient {
   async recentActivity(vault: PublicKey, limit = 25): Promise<ActivityEvent[]> {
     const sigs = await this.connection.getSignaturesForAddress(vault, { limit }, "confirmed");
     if (!sigs.length) return [];
-    const txs = await this.connection.getTransactions(
-      sigs.map((s) => s.signature),
-      { commitment: "confirmed", maxSupportedTransactionVersion: 0 },
-    );
+    // Small parallel chunks instead of one JSON-RPC batch: public devnet answers big getTransactions batches with
+    // "Too many requests for a specific RPC call". Txs that still fail are skipped, not fatal.
     const out: ActivityEvent[] = [];
-    txs.forEach((tx, i) => {
-      if (!tx?.meta) return;
-      const s = sigs[i];
-      out.push(...this.toActivity(s.signature, tx.meta.logMessages ?? [], tx.meta.err, s.blockTime ?? tx.blockTime ?? 0, tx.slot));
-    });
+    for (let i = 0; i < sigs.length; i += 4) {
+      const chunk = sigs.slice(i, i + 4);
+      const txs = await Promise.all(
+        chunk.map((s) =>
+          this.connection
+            .getTransaction(s.signature, { commitment: "confirmed", maxSupportedTransactionVersion: 0 })
+            .catch(() => null),
+        ),
+      );
+      txs.forEach((tx, j) => {
+        if (!tx?.meta) return;
+        const s = chunk[j];
+        out.push(...this.toActivity(s.signature, tx.meta.logMessages ?? [], tx.meta.err, s.blockTime ?? tx.blockTime ?? 0, tx.slot));
+      });
+    }
     return out;
   }
 }

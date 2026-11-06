@@ -37,11 +37,21 @@ async function ask(query: string, offline: () => string, opts: { allowOfflineFal
     let p = inflight.get(query);
     const shared = !!p;
     if (!p) {
-      p = youAnswer(query).then(({ answer }) => {
-        if (!answer || /could not be found/i.test(answer)) throw new Error(`Model gave no usable answer: "${answer}"`);
-        cache.set(query, { output: answer, at: Date.now() });
-        return answer;
-      });
+      // The Answer API is not deterministic: the same question sometimes comes back "could not be found" and
+      // succeeds on the next call (observed Nov 6). Retry the identical question up to 3 times.
+      p = (async () => {
+        let last = "";
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const { answer } = await youAnswer(query);
+          if (answer && !/could not be found/i.test(answer)) {
+            cache.set(query, { output: answer, at: Date.now() });
+            return answer;
+          }
+          last = answer;
+          await new Promise((r) => setTimeout(r, 400));
+        }
+        throw new Error(`Model gave no usable answer after 3 tries: "${last}"`);
+      })();
       inflight.set(query, p);
       p.finally(() => inflight.delete(query)).catch(() => undefined);
     }

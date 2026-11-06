@@ -124,14 +124,16 @@ export function DemoClient() {
       setOffline(false);
       return;
     }
+    let r: Response;
     try {
-      const r = await fetch(`${ENV.agentUrl}/balances`, { cache: "no-store" });
-      if (!r.ok) throw new Error(String(r.status));
-      setBalances((await r.json()) as DemoBalances);
-      setOffline(false);
+      r = await fetch(`${ENV.agentUrl}/balances`, { cache: "no-store" });
     } catch {
-      setOffline(true);
+      setOffline(true); // agent server unreachable
+      return;
     }
+    setOffline(false);
+    // A 5xx here is an RPC hiccup (devnet 429s): keep showing the last balances instead of zeros.
+    if (r.ok) setBalances((await r.json()) as DemoBalances);
   }, [mock]);
 
   // live balances: account subscriptions on both token accounts + 3s polling fallback (public devnet WS is flaky)

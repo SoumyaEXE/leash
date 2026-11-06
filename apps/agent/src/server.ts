@@ -6,7 +6,7 @@
 import express, { type NextFunction, type Request, type Response } from "express";
 import type { DemoMode, ScenarioId } from "@leash/sdk/demo";
 import { checkRequest, startApprovalWatcher } from "./approvals";
-import { getBalances } from "./balances";
+import { getBalances, invalidateBalances } from "./balances";
 import { settings } from "./env";
 import { getLeash } from "./leash";
 import { resetDemo } from "./reset";
@@ -76,6 +76,7 @@ app.post("/run", async (req, res) => {
     return;
   }
   const out = await exclusive([p.mode], () => runScenario(p.mode!, p.scenario!, { variant: p.variant }));
+  invalidateBalances();
   if (!out) {
     res.status(409).json({ error: `A ${p.mode} run is already in progress` });
     return;
@@ -96,6 +97,7 @@ app.post("/run-split", async (req, res) => {
     ]);
     return { victim, leashed };
   });
+  invalidateBalances();
   if (!out) {
     res.status(409).json({ error: "A run is already in progress" });
     return;
@@ -105,6 +107,7 @@ app.post("/run-split", async (req, res) => {
 
 app.post("/reset", async (_req, res) => {
   const out = await exclusive(MODES, () => resetDemo());
+  invalidateBalances();
   if (!out) {
     res.status(409).json({ ok: false, log: ["A run is in progress; try again in a moment."] });
     return;
