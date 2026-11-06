@@ -23,7 +23,7 @@ const actions = withoutRawTransfer(agent.actions);
 |---|---|
 | `LEASH_PAY` | Pay an owner-approved payee. Refusals come back as `{ status: "blocked_onchain", error: "PayeeNotAuthorized", explorer }`; amounts at or above the co-sign threshold become a pending request with an `approveUrl` |
 | `LEASH_REQUEST` | Create a pending payment for the owner to approve via a Blink. Nothing moves until they sign |
-| `LEASH_BALANCE` | Vault balance, paused flag, what's left in the current 24h window, payees and their remaining budgets |
+| `LEASH_BALANCE` | Vault balance, paused flag, what's left of the rolling 24h cap, payees and their remaining budgets |
 
 The plugin also exposes `methods.leashPay(agent, payee, amount, reason)`. Refused payments are sent with
 `skipPreflight`, so the failed transaction (and its named error) is onchain. The `reason` is published as an SPL Memo:
