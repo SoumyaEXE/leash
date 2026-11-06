@@ -57,10 +57,11 @@ mkdirSync(join(out, "idl"), { recursive: true });
 cpSync(join(root, "dist"), join(out, "dist"), { recursive: true });
 cpSync(join(root, "src", "idl", "leash.json"), join(out, "idl", "leash.json"));
 cpSync(join(root, "..", "..", "LICENSE"), join(out, "LICENSE"));
-// README for npm readers: install/import lines use the public name; workspace-only commands stay as written
-const readme = readFileSync(join(root, "README.md"), "utf8")
-  .replace(/(pnpm add|npm i(?:nstall)?|yarn add) @leash\/sdk/g, `$1 ${PUBLIC_NAME}`)
-  .replace(/from ["']@leash\/sdk(\/[a-z.\-/]+)?["']/g, (_m, sub = "") => `from "${PUBLIC_NAME}${sub}"`);
+// The README already uses the public name for install and import lines (and warns that @leash/sdk on npm is
+// someone else's), so it is copied as is; fail if an install line points at the wrong package.
+const readme = readFileSync(join(root, "README.md"), "utf8");
+const wrong = readme.split("\n").filter((l) => /(pnpm add|yarn add|npm i(nstall)?) @leash\/sdk/.test(l) && !/unrelated|their/i.test(l));
+if (wrong.length) throw new Error(`README install line points at @leash/sdk:\n${wrong.join("\n")}`);
 writeFileSync(join(out, "README.md"), readme);
 writeFileSync(join(out, "package.json"), JSON.stringify(publicPkg, null, 2) + "\n");
 console.log(`staged ${PUBLIC_NAME}@${pkg.version} in ${out}`);
