@@ -19,14 +19,29 @@ export async function resetDemo(): Promise<{ ok: boolean; log: string[] }> {
     return { ok: leash.kind === "mock", log };
   }
   const ok = await new Promise<boolean>((done) => {
-    const child = spawn("pnpm", ["--filter", "scripts", "run", "reset:demo"], { cwd: ROOT, shell: true, env: process.env });
+    // Run the script directly with Node + tsx (no shell, no nested pnpm, stdin closed): spawning `pnpm` through a
+    // shell with an open stdin pipe never exited on Windows, so /reset hung.
+    const child = spawn(process.execPath, ["--import", "tsx", script], {
+      cwd: resolve(ROOT, "scripts"),
+      env: process.env,
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+    });
+    const timer = setTimeout(() => {
+      log.push("reset timed out after 120 s");
+      child.kill();
+    }, 120_000);
     const onData = (d: Buffer) => {
       for (const line of d.toString().split(/\r?\n/)) if (line.trim()) log.push(line.trim());
     };
     child.stdout.on("data", onData);
     child.stderr.on("data", onData);
-    child.on("close", (code) => done(code === 0));
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      done(code === 0);
+    });
     child.on("error", (e) => {
+      clearTimeout(timer);
       log.push(`spawn failed: ${e.message}`);
       done(false);
     });

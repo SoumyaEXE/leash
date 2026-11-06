@@ -175,7 +175,9 @@ async function main() {
   log("\n.env updated. Demo state is seeded.");
 }
 
-main().catch((e) => {
+main()
+  .then(() => process.exit(0)) // RPC websocket subscriptions would otherwise keep the process alive
+  .catch((e) => {
   console.error(`\nsetup failed: ${e instanceof Error ? e.message : e}`);
   process.exit(1);
 });

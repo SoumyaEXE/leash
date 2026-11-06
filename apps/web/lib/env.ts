@@ -1,6 +1,15 @@
 // Browser-safe config. Each NEXT_PUBLIC_* must be referenced literally so Next inlines it.
+
+// "proxy" (default): the browser talks to /api/rpc, which forwards to SOLANA_RPC_URL (e.g. Helius) server-side,
+// so the provider's API key never reaches visitors. Any explicit URL is used as-is.
+const RPC_SETTING = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "proxy";
+const ORIGIN =
+  typeof window !== "undefined" ? window.location.origin : process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+
 export const ENV = {
-  rpc: process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.devnet.solana.com",
+  rpc: RPC_SETTING === "proxy" ? `${ORIGIN}/api/rpc` : RPC_SETTING,
+  /** websocket subscriptions can't go through the proxy; public devnet WS is light enough per visitor */
+  ws: process.env.NEXT_PUBLIC_SOLANA_WS_URL || "wss://api.devnet.solana.com",
   programId: process.env.NEXT_PUBLIC_LEASH_PROGRAM_ID || "",
   vault: process.env.NEXT_PUBLIC_LEASH_VAULT || "",
   arenaVault: process.env.NEXT_PUBLIC_ARENA_VAULT || "",

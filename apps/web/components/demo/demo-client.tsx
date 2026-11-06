@@ -145,7 +145,7 @@ export function DemoClient() {
 
   useEffect(() => {
     if (mock || !balances?.victim.tokenAccount || !balances.vault.tokenAccount) return;
-    const conn = new Connection(ENV.rpc, "confirmed");
+    const conn = new Connection(ENV.rpc, { commitment: "confirmed", wsEndpoint: ENV.ws });
     const ids: number[] = [];
     for (const acct of [balances.victim.tokenAccount, balances.vault.tokenAccount]) {
       try {

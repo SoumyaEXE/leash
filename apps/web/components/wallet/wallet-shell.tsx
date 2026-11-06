@@ -12,7 +12,7 @@ import { ENV } from "@/lib/env";
  */
 export function WalletShell({ children }: { children: ReactNode }) {
   return (
-    <ConnectionProvider endpoint={ENV.rpc} config={{ commitment: "confirmed" }}>
+    <ConnectionProvider endpoint={ENV.rpc} config={{ commitment: "confirmed", wsEndpoint: ENV.ws }}>
       <WalletProvider wallets={[]} autoConnect>
         <WalletModalProvider>{children}</WalletModalProvider>
       </WalletProvider>
