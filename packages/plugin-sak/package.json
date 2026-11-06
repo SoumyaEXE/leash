@@ -1,0 +1,28 @@
+{
+  "name": "@leash/plugin-sak",
+  "version": "0.1.0",
+  "description": "Solana Agent Kit plugin: swap the raw TRANSFER action for Leash-governed payments",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "example": "tsx example/agent.ts"
+  },
+  "dependencies": {
+    "@leash/sdk": "workspace:*",
+    "@solana/web3.js": "^1.99.0",
+    "dotenv": "^17.2.3",
+    "zod": "^3.25.0"
+  },
+  "peerDependencies": {
+    "solana-agent-kit": "2.0.10"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "solana-agent-kit": "2.0.10",
+    "tsx": "^4.23.15",
+    "typescript": "5.9.3"
+  }
+}
