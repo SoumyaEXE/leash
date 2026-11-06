@@ -49,9 +49,29 @@ export function recordAttempt(a: ArenaAttempt): ArenaData {
   if (a.attempted) d.score.fooled += 1;
   if (a.result?.status === "blocked") d.score.blocked += 1;
   if (a.result?.status === "executed") d.score.drained += 1;
+  save(d);
+  return d;
+}
+
+function save(d: ArenaData): void {
   mkdirSync(dirname(FILE), { recursive: true });
   const tmp = `${FILE}.tmp`;
   writeFileSync(tmp, JSON.stringify(d, null, 1));
   renameSync(tmp, FILE);
+}
+
+/**
+ * Fill in the onchain result of an attempt that was recorded before the onchain call (app/api/arena/chat writes
+ * first, so a crash or timeout mid-call still leaves the attempt on the record). Counts blocked/drained once.
+ */
+export function finishAttempt(id: string, result: NonNullable<ArenaAttempt["result"]>): ArenaData {
+  const d = readArena();
+  const a = d.attempts.find((x) => x.id === id);
+  if (a && !a.result) {
+    a.result = result;
+    if (result.status === "blocked") d.score.blocked += 1;
+    if (result.status === "executed") d.score.drained += 1;
+    save(d);
+  }
   return d;
 }

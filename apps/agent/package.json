@@ -15,7 +15,8 @@
     "reset": "tsx src/cli.ts reset",
     "typecheck": "tsc --noEmit -p .",
     "lab": "tsx src/lab.ts",
-    "v12": "tsx src/v12-replay.ts"
+    "v12": "tsx src/v12-replay.ts",
+    "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
     "@leash/llm": "workspace:*",

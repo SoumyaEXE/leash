@@ -5,11 +5,13 @@
  * the pre-Aug-18 default x402 client. The leashed agent is still safe because the vault, not the client, decides.
  * Pass `maxPrice` to get the modern client-side refusal behaviour.
  */
-import { PublicKey } from "@solana/web3.js";
+import { createPrivateKey, sign } from "node:crypto";
+import { type Keypair, PublicKey } from "@solana/web3.js";
 import { decodePaymentRequiredHeader, decodePaymentResponseHeader, encodePaymentSignatureHeader } from "@x402/core/http";
 import type { PaymentRequired, PaymentRequirements, SettleResponse } from "@x402/core/types";
 import { fromBaseUnits, fromHex } from "@leash/sdk";
 import type { DemoPayment } from "@leash/sdk/demo";
+import { settings } from "./env";
 import type { WalletBackend } from "./wallets";
 
 export interface PayForResourceArgs {
@@ -119,7 +121,30 @@ export async function payForResource(args: PayForResourceArgs, backend: WalletBa
   return retryWithProof(args, paymentRequired, accepted, nonce, payment.sig, payment);
 }
 
-/** Retry the original request with PAYMENT-SIGNATURE carrying the onchain proof. */
+/**
+ * Payer authorization (apps/x402-servers/src/payer-auth.ts): the key that paid signs (nonce, resource.url) so a
+ * front-runner who copies our public tx signature can't redeem the payment. Format, UTF-8, ed25519, "\n"-joined:
+ *   leash-x402-payer:v1 / nonce:<nonce> / resource:<resource.url>
+ */
+export const PAYER_AUTH_PREFIX = "leash-x402-payer:v1";
+
+export function payerAuthorization(signer: Keypair, nonce: string, resourceUrl: string): { payer: string; payerSignature: string } {
+  const b64url = (b: Uint8Array) => Buffer.from(b).toString("base64url");
+  const key = createPrivateKey({
+    key: { kty: "OKP", crv: "Ed25519", d: b64url(signer.secretKey.slice(0, 32)), x: b64url(signer.secretKey.slice(32, 64)) },
+    format: "jwk",
+  });
+  const msg = Buffer.from(`${PAYER_AUTH_PREFIX}\nnonce:${nonce}\nresource:${resourceUrl}`, "utf8");
+  return { payer: signer.publicKey.toBase58(), payerSignature: sign(null, msg, key).toString("base64") };
+}
+
+/** The key that pays for each scheme: the vault's agent key (leash) or the victim's hot wallet (transfer). */
+function payingKey(scheme: string): Keypair | null {
+  const s = settings();
+  return scheme === "leash" ? s.agent : scheme === "transfer" ? s.victim : null;
+}
+
+/** Retry the original request with PAYMENT-SIGNATURE carrying the onchain proof and the payer authorization. */
 export async function retryWithProof(
   args: PayForResourceArgs,
   paymentRequired: PaymentRequired,
@@ -129,11 +154,24 @@ export async function retryWithProof(
   payment?: DemoPayment,
   extraPayload: Record<string, unknown> = {},
 ): Promise<PayForResourceResult> {
+  const signer = payingKey(accepted.scheme);
+  const resourceUrl = paymentRequired.resource?.url;
+  if (!signer || !resourceUrl) {
+    return {
+      status: "failed",
+      httpStatus: 402,
+      requirement: accepted,
+      paymentRequired,
+      payment,
+      paidTxSig: txSignature,
+      error: !signer ? `No key to sign the "${accepted.scheme}" payer authorization (keys/agent.json / keys/victim.json)` : "402 terms without resource.url",
+    };
+  }
   const proof = encodePaymentSignatureHeader({
     x402Version: 2,
     resource: paymentRequired.resource,
     accepted,
-    payload: { txSignature, nonce, ...extraPayload },
+    payload: { txSignature, nonce, ...extraPayload, ...payerAuthorization(signer, nonce, resourceUrl) },
   });
   // The leash verifier reads the confirmed tx; give the RPC a moment if it isn't indexed yet.
   let res: Response | null = null;

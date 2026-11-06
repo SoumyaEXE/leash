@@ -14,6 +14,9 @@ import { cfg, connection, setupGaps } from "./config";
 import { type PaymentInfo, paywall } from "./paywall";
 
 const app = express();
+// Behind a hosting proxy (Render/Fly/...), set X402_TRUST_PROXY to the number of proxy hops so req.ip (used for
+// the per-IP 402 issuance limit) is the client, not the proxy. Unset: req.ip is the socket address.
+if (process.env.X402_TRUST_PROXY) app.set("trust proxy", Number(process.env.X402_TRUST_PROXY) || process.env.X402_TRUST_PROXY);
 app.use(express.json({ limit: "32kb" }));
 app.use((req: Request, res: Response, next: NextFunction) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
