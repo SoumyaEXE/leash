@@ -3,7 +3,7 @@
 import { gsap } from "gsap";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { short } from "@/lib/env";
-import { ExtLink } from "../cx/icons";
+import { ArrowUp, ExtLink } from "../cx/icons";
 import { Container } from "../cx/primitives";
 import { prefersReducedMotion } from "../motion/reduced-motion";
 import { PrimaryButton } from "../ui/buttons";
@@ -113,14 +113,12 @@ export function ArenaClient() {
               </span>
               <div>
                 <h2 className="text-[18px] leading-5">Warden</h2>
-                <div className="text-[14px] text-white/65">You.com model · guarded_spend vault</div>
+                <div className="text-[14px] text-white/65">Answers with a You.com model · pays from a Leash vault</div>
               </div>
             </div>
-            <label htmlFor={`${ids}-addr`} className="sr-only">
-              Your devnet address, where Warden would pay you
-            </label>
             <input
               id={`${ids}-addr`}
+              aria-label="Your devnet address, where Warden would pay you"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               placeholder="Your devnet address, to get paid"
@@ -146,18 +144,21 @@ export function ArenaClient() {
             {busy && <div className="text-[15px] text-white/65">Warden is thinking…</div>}
           </div>
           <form
-            className="flex items-end gap-3 border-t border-white/10 px-6 py-5 sm:px-8"
+            className="border-t border-white/10 px-6 py-5 sm:px-8"
             onSubmit={(e) => {
               e.preventDefault();
               void send();
             }}
           >
-            <div className="flex-1">
-              <label htmlFor={`${ids}-msg`} className="sr-only">
-                Message to Warden
-              </label>
+            {/* one composer box: the textarea on top, a toolbar row (hint · count · send) inside the same border */}
+            <div
+              className={`rounded-[22px] border bg-black/45 transition-[border-color,box-shadow] duration-300 focus-within:border-[#d32800]/80 focus-within:shadow-[0_0_0_4px_rgb(211_40_0/0.14)] ${
+                paused ? "border-white/10 opacity-70" : "border-white/15 hover:border-white/25"
+              }`}
+            >
               <textarea
                 id={`${ids}-msg`}
+                aria-label="Message to Warden"
                 value={input}
                 onChange={(e) => setInput(e.target.value.slice(0, MAX))}
                 onKeyDown={(e) => {
@@ -168,21 +169,29 @@ export function ArenaClient() {
                 }}
                 rows={2}
                 maxLength={MAX}
-                aria-describedby={`${ids}-count${needsAddress ? ` ${ids}-hint` : ""}`}
+                aria-describedby={`${ids}-count ${ids}-hint`}
                 placeholder={paused ? "The Arena is paused." : "Talk Warden into paying you…"}
                 disabled={paused}
-                className="w-full resize-none rounded-[20px] border border-white/15 bg-black/50 px-5 py-3.5 text-[17px] placeholder:text-white/55 focus:border-[#d32800]"
+                className="composer-input block w-full resize-none bg-transparent px-5 pb-2 pt-4 text-[17px] leading-[26px] placeholder:text-white/50"
               />
-              <div className="mt-1 flex justify-between gap-3 text-[13px] text-white/60">
-                <span id={`${ids}-hint`}>{needsAddress && !paused ? "Paste your devnet address above to send." : ""}</span>
-                <span id={`${ids}-count`} className="tabular">
+              <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2 px-3 pb-3 pl-5">
+                <span
+                  id={`${ids}-hint`}
+                  className={`min-w-0 flex-1 basis-[200px] text-[13px] leading-[18px] ${
+                    needsAddress && !paused ? "text-[#ffd48a]" : "hidden text-white/55 sm:block"
+                  }`}
+                >
+                  {paused ? "" : needsAddress ? "Paste your devnet address above to send" : "Enter to send · Shift+Enter for a new line"}
+                </span>
+                <span id={`${ids}-count`} className={`tabular shrink-0 text-[13px] ${input.length >= MAX ? "text-[#ffb0a6]" : "text-white/55"}`}>
                   {input.length}/{MAX}
                 </span>
+                <PrimaryButton size="sm" type="submit" disabled={busy || !input.trim() || needsAddress || paused} className="shrink-0">
+                  {busy ? "Sending…" : "Send"}
+                  <ArrowUp size={16} strokeWidth={2} />
+                </PrimaryButton>
               </div>
             </div>
-            <PrimaryButton size="md" type="submit" disabled={busy || !input.trim() || needsAddress || paused} className="mb-6">
-              Send
-            </PrimaryButton>
           </form>
         </section>
 

@@ -96,6 +96,10 @@ textarea:focus-visible,
 select:focus-visible {
   outline-offset: 1px;
 }
+/* a textarea inside a composer box: the box shows focus (focus-within ring), so no second ring inside it */
+.composer-input:focus-visible {
+  outline: none;
+}
 /* skip-link target and programmatic focus on containers: no ring around the whole page */
 main:focus,
 [tabindex="-1"]:focus {
