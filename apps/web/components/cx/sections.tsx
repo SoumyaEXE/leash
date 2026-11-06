@@ -548,42 +548,76 @@ const FAQ = [
   { q: "Is it on mainnet?", a: "Not yet. Leash runs on Solana devnet and hasn't been audited. Use it with test tokens only." },
 ];
 
+/**
+ * Accordion: one question open at a time. Opening one closes the other; the panel height animates with the
+ * grid-rows 0fr → 1fr trick, the answer fades and un-blurs in, and the plus turns into a close mark.
+ */
 export function Faq() {
   const [open, setOpen] = useState(0);
   return (
     <section id="faq" className="relative mt-[180px] scroll-mt-[120px]">
-      <div aria-hidden className="pointer-events-none absolute left-1/2 top-[220px] h-[420px] w-[620px] -translate-x-1/2 rounded-full blur-[110px]" style={{ background: "rgb(211 40 0 / 0.22)" }} />
-      <Container className="relative">
-        <SectionHead
-          split
-          badge="FAQ"
-          title={
-            <>
-              Frequently Asked
-              <br />
-              Questions
-            </>
-          }
-          text="How Leash keeps an agent's money where its owner put it."
-        />
-        <div className="mt-16 border-t border-white/15">
+      <div aria-hidden className="pointer-events-none absolute right-[10%] top-[120px] h-[460px] w-[620px] rounded-full blur-[120px]" style={{ background: "rgb(211 40 0 / 0.2)" }} />
+      <Container className="relative grid gap-12 lg:grid-cols-[460px_1fr] lg:gap-14">
+        <div className="self-start lg:sticky lg:top-[140px]">
+          <Reveal>
+            <Badge>FAQ</Badge>
+          </Reveal>
+          <Reveal delay={80} as="h2" className="cx-h2 mt-10">
+            Frequently Asked
+            <br />
+            Questions
+          </Reveal>
+          <Reveal delay={160} as="p" className="cx-body mt-6 max-w-[360px] text-white/80">
+            How Leash keeps an agent&apos;s money where its owner put it.
+          </Reveal>
+          <Reveal delay={240} className="cx-border cx-glow-soft mt-10 rounded-[20px] p-6" style={{ ["--cx-angle" as string]: "125deg" }}>
+            <div className="text-[18px]">Still not convinced?</div>
+            <p className="cx-small mt-2 text-white/70">Try to talk our agent into paying you. The model can be fooled; the vault has held every time.</p>
+            <div className="mt-5 flex flex-nowrap items-center gap-2.5">
+              <Link href="/arena" className="cx-btn cx-btn-sm group">
+                Enter the Arena
+                <Arrow />
+              </Link>
+              <Link href="/demo" className="cx-btn-ghost cx-btn-sm group">
+                Watch the replay
+              </Link>
+            </div>
+          </Reveal>
+        </div>
+
+        <div className="flex flex-col gap-3">
           {FAQ.map((f, i) => {
             const isOpen = open === i;
+            const id = `faq-${i}`;
             return (
-              <div key={f.q} className="border-b border-white/15">
-                <button type="button" onClick={() => setOpen(isOpen ? -1 : i)} className="grid w-full grid-cols-[1fr_auto] items-center gap-6 py-10 text-left lg:grid-cols-[1fr_420px_auto]" aria-expanded={isOpen}>
-                  <span className="text-[18px] leading-[27px]">
-                    <span className="tabular mr-2 text-white/85">({String(i + 1).padStart(2, "0")})</span>
-                    {f.q}
-                  </span>
-                  <span className={`hidden text-[16px] leading-[25.6px] text-white/90 transition-opacity duration-300 lg:block ${isOpen ? "opacity-100" : "opacity-0"}`}>{isOpen ? f.a : ""}</span>
-                  <span className="relative h-5 w-5" aria-hidden>
-                    <span className="absolute left-0 top-1/2 h-[1.5px] w-5 -translate-y-1/2 bg-white" />
-                    <span className={`absolute left-1/2 top-0 h-5 w-[1.5px] -translate-x-1/2 bg-white transition-transform duration-300 ${isOpen ? "scale-y-0" : "scale-y-100"}`} />
-                  </span>
-                </button>
-                {isOpen && <p className="cx-small -mt-4 pb-8 lg:hidden">{f.a}</p>}
-              </div>
+              <Reveal key={f.q} delay={i * 70}>
+                <div data-open={isOpen} className="faq-item group relative overflow-hidden rounded-[20px]">
+                  <div aria-hidden className="faq-glow pointer-events-none absolute inset-0" />
+                  <h3 className="relative">
+                    <button
+                      type="button"
+                      id={`${id}-q`}
+                      aria-expanded={isOpen}
+                      aria-controls={`${id}-a`}
+                      onClick={() => setOpen(isOpen ? -1 : i)}
+                      className="flex w-full items-center gap-5 px-6 py-6 text-left sm:px-7"
+                    >
+                      <span className={`tabular w-9 shrink-0 text-[15px] transition-colors duration-300 ${isOpen ? "text-[#ff7a45]" : "text-white/45"}`}>{String(i + 1).padStart(2, "0")}</span>
+                      <span className={`flex-1 text-[18px] leading-[27px] transition-colors duration-300 ${isOpen ? "text-white" : "text-white/85 group-hover:text-white"}`}>{f.q}</span>
+                      <Plus
+                        size={22}
+                        strokeWidth={1.5}
+                        className={`transition-[rotate,color] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${isOpen ? "rotate-45 text-[#ff7a45]" : "text-white/70 group-hover:text-white"}`}
+                      />
+                    </button>
+                  </h3>
+                  <div id={`${id}-a`} role="region" aria-labelledby={`${id}-q`} className="faq-panel relative">
+                    <div className="min-h-0 overflow-hidden">
+                      <p className="faq-answer cx-small pb-7 pl-[80px] pr-6 text-white/80 sm:pl-[84px] sm:pr-[70px]">{f.a}</p>
+                    </div>
+                  </div>
+                </div>
+              </Reveal>
             );
           })}
         </div>
