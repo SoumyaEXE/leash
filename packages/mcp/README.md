@@ -29,10 +29,10 @@ Claude Desktop (`claude_desktop_config.json`):
 
 | Tool | What it does |
 |---|---|
-| `leash_balance` | Vault balance, caps left today, approved payees and their budgets |
+| `leash_balance` | Vault balance, what's left of the rolling 24h cap, approved payees and their budgets |
 | `leash_pay` | Pay an approved payee; over the co-sign threshold it becomes an owner approval request |
 | `leash_request` | Explicit owner approval request (returns the Blink / Action URL) |
-| `leash_pay_for_resource` | x402 v2: fetch → 402 → pay via Leash (`leash` scheme) → retry with `PAYMENT-SIGNATURE` |
+| `leash_pay_for_resource` | x402 v2: fetch → 402 → pay via Leash (`leash` scheme) → retry with `PAYMENT-SIGNATURE` (the tx signature plus a payer authorization, `leash-x402-payer:v1` over the nonce and resource URL, signed by the agent key) |
 
 Project-scoped config: `.mcp.example.json` at the repo root attaches this server. Copy it to `.mcp.json`; the path
 is relative to the repo root. The server reads the repo `.env` itself, so the `env` block can stay empty.

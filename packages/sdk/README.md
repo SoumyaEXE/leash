@@ -1,11 +1,18 @@
-# @leash/sdk
+# Leash SDK (`@soumyaexe/leash-sdk`)
 
 TypeScript client for the Leash Solana program. Works in Node and the browser (`@solana/web3.js` v1), no IDL
 codegen needed.
 
+Published on npm as @soumyaexe/leash-sdk; inside this monorepo the workspace package is @leash/sdk.
+(`@leash` on npm is an unrelated company's scope: `npm i @leash/sdk` installs *their* package, not this one.)
+
+```bash
+pnpm add @soumyaexe/leash-sdk        # or: npm i @soumyaexe/leash-sdk
+```
+
 ```ts
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
-import { LeashClient, toBaseUnits } from "@leash/sdk";
+import { LeashClient, toBaseUnits } from "@soumyaexe/leash-sdk";
 
 const leash = new LeashClient({
   connection: new Connection("https://api.devnet.solana.com", "confirmed"),
@@ -42,7 +49,7 @@ enforced. The message names the program, cluster, vault (and when it was opened)
 nonce and intent, so it can't be replayed on another cluster, program or re-opened vault.
 
 ```ts
-import { encodeSignedMandate, mandateContextFor, mandateMessageText, signMandate, toBaseUnits } from "@leash/sdk";
+import { encodeSignedMandate, mandateContextFor, mandateMessageText, signMandate, toBaseUnits } from "@soumyaexe/leash-sdk";
 
 // owner, in the browser
 const v = await leash.getVault(vault);
@@ -105,7 +112,13 @@ Security notes (details and open items in the root `SECURITY.md`):
 pnpm --filter @leash/sdk test
 ```
 
-`node:test` via tsx. `test/idl.test.ts` checks every discriminator, account meta, instruction arg, account and event
-layout against `src/idl/leash.json` (copied from `anchor build` by `pnpm sdk:sync-idl`) using an independent
-IDL-driven codec. `test/mandate.test.ts` uses the program's own message vectors. CI (`.github/workflows/ci.yml`)
-also fails if the committed IDL differs from what the program builds.
+83 tests, `node:test` via tsx. `test/idl.test.ts` checks every discriminator, account meta, instruction arg, account
+and event layout against `src/idl/leash.json` (copied from `anchor build` by `pnpm sdk:sync-idl`) using an
+independent IDL-driven codec. `test/mandate.test.ts` uses the program's own message vectors. `test/client.test.ts`
+runs the client against an in-memory connection; there are no LiteSVM/Surfpool integration tests yet. CI
+(`.github/workflows/ci.yml`) also fails if the committed IDL differs from what the program builds; the workflow is
+added but has not run yet (the repo hasn't been pushed).
+
+The IDL in `src/idl/` is the v2 program's, which is the one deployed on devnet since Nov 7. Vaults created by the v1
+program (204 bytes, `LEGACY_VAULT_ACCOUNT_SIZE`) can't be loaded: `isLegacyVaultAccount` detects them and
+`decodeVault` throws a clear error. Create a new vault (new `vault_id`) instead.

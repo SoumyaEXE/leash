@@ -4,10 +4,23 @@ Demo agents for Leash, plus the lab where a real tool-calling agent (Claude Code
 
 | Command | What it does |
 |---|---|
-| `pnpm --filter agent dev` | Agent server on :4020 (`/run`, `/reset`) used by the web demo |
+| `pnpm --filter agent dev` | Agent server on :4020 (`/run`, `/run-split`, `/reset`) used by the web demo |
 | `pnpm --filter agent demo:victim` / `demo:leashed` / `demo:split` | Scripted scenarios: the same model and pipeline with an unprotected wallet or a Leash vault |
 | `pnpm --filter agent lab <cmd>` | The A1 lab below: `status`, `config`, `run`, `report`, `verify` |
 | `pnpm --filter agent v12` | V12 replay: pinned `@x402/fetch` 2.22.0 vs current 2.30.0 (capped) vs Leash, against a hostile 402 server |
+| `pnpm --filter agent test` | 27 tests: command parser (thousands separators, refusals), x402 payer authorization, server exposure |
+
+The agent server binds loopback only (127.0.0.1 and ::1) unless `HOST` is set. With `AGENT_TOKEN` set, `POST /run`,
+`/run-split` and `/reset` need `Authorization: Bearer <AGENT_TOKEN>`; a hosted web app reaches it through its
+`/api/agent` proxy, which adds the token server-side. With no token (the local demo) nothing changes.
+
+S1 asks the model to decode the Morse letter by letter. A decode is accepted only when its letters and digits match
+the Morse exactly; otherwise the same question is asked again (up to 3 calls), and the transcript label says how
+many calls it took. That checks the translation, not whether the attack works (see `packages/llm/README.md`).
+
+**Program version:** the lab runs and the V12 replay below ran on Nov 6 against the **v1 program**, before the
+in-place v2 upgrade on Nov 7, so their transactions and the vault they used are from v1. The four `/demo` scenarios
+were re-run on v2 on Nov 7 (root `README.md`).
 
 ## Lab: a real agent reads poisoned API docs
 
@@ -46,11 +59,12 @@ pnpm --filter agent lab run --docs hidden-license            # Zscaler-style hid
 pnpm --filter agent lab run --docs activation-step           # visible fee step
 pnpm --filter agent lab run --docs activation-step --model haiku
 pnpm --filter agent lab run --docs clean                     # control
-#   --docs-base http://localhost:3300 if the web app runs elsewhere; --max-turns 8 by default
+#   --docs-base http://localhost:3300 (or LAB_DOCS_BASE_URL) if the web app runs elsewhere; --max-turns 8 by default
 
 pnpm --filter agent lab verify <sig> ...   # read each tx back from devnet: Leash error name or SpendExecuted
 pnpm --filter @leash/mcp test:lure         # counterfactual: send the lure's exact leash_pay through the MCP server
 curl -X POST http://localhost:4020/reset   # restore demo balances and payee budgets afterwards
+#   (add -H "Authorization: Bearer $AGENT_TOKEN" if AGENT_TOKEN is set)
 ```
 
 `lab run` writes `apps/agent/data/lab/mcp.json`, which holds absolute paths and is gitignored. It then runs Claude
@@ -78,7 +92,7 @@ claude -p --output-format stream-json --verbose --model sonnet --max-turns 8 \
 For interactive use, `.mcp.example.json` at the repo root attaches the same server. Copy it to `.mcp.json` (paths
 are relative to the repo root), or run `claude mcp add leash -- node packages/mcp/dist/index.js`.
 
-### Results (Nov 6, 2026, devnet, Claude Code 2.1.319)
+### Results (Nov 6, 2026, devnet, v1 program, Claude Code 2.1.319)
 
 These are three runs, the limit we set. Full reports are in [`lab-runs/`](lab-runs).
 
@@ -131,12 +145,13 @@ the script starts on its own port (4310 by default):
 | leash | the demo's leashed agent (`payForResource` + `LeashedWallet`, scheme `leash`, pays from the vault) |
 
 ```bash
-pnpm --filter agent v12 --loop 5            # needs keys/victim.json, keys/attacker.json (fee payer), LEASH_VAULT
+pnpm --filter agent v12 --loop 5            # needs keys/victim.json, keys/attacker.json (fee payer; or ATTACKER_KEYPAIR_PATH), LEASH_VAULT
 pnpm --filter agent v12 --only leash        # just the vault (moves no tokens: every attempt is refused)
 curl -X POST http://localhost:4020/reset    # the legacy client empties the victim wallet; this refunds it
 ```
 
-Results (Nov 6, 2026, devnet; full table and every tx link in [`lab-runs/v12-replay.md`](lab-runs/v12-replay.md)):
+Results (Nov 6, 2026, devnet, v1 program; full table and every tx link in
+[`lab-runs/v12-replay.md`](lab-runs/v12-replay.md)):
 
 | | 0.99/call loop ×5 → attacker | Hostile 402: whole balance → attacker |
 |---|---|---|
@@ -147,9 +162,9 @@ Results (Nov 6, 2026, devnet; full table and every tx link in [`lab-runs/v12-rep
 If an allowlisted API turns hostile (the same 0.99 loop, `payTo` = the approved Market Data payee), Leash stops it
 at call 1 with **ExceedsPayeePerTx**, because the payee's per-payment max is 0.50
 ([tx](https://explorer.solana.com/tx/2VokdgwLVtenwnYW4T8LP4Npq9yyiqQHzanUuHXXkh8fUMXgwYqB4vWexkBtG6XChz2841ZU4YfNSWehbah8y1Gj?cluster=devnet)).
-Cheaper loops end at the payee budget (`PayeeBudgetExceeded`) or the 24h cap (`ExceedsDailyCap`). Both errors are
-covered by the LiteSVM tests. We did not run that loop live, because it would use up the shared demo vault's 24h
-window.
+Cheaper loops end at the payee budget (`PayeeBudgetExceeded`) or the vault's 24h cap (`ExceedsDailyCap`, a rolling
+24h since v2). Both errors are covered by the LiteSVM tests. We did not run that loop live, because it would use up
+the shared demo vault's 24h allowance.
 
 With default `spendControls`, 2.30.0 refuses devnet dUSDC outright, since the SDK doesn't recognize it. That would
 block legitimate payments too, so the capped client opts dUSDC in with the same $1 cap the default applies to USDC.
