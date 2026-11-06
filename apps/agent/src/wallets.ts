@@ -116,7 +116,7 @@ export class LeashedWallet implements WalletBackend {
     if (res.ok) return { ...base, status: "executed", sig: res.sig, explorerUrl: res.explorerUrl || undefined };
     if (res.name === "RequiresCosign") {
       // Over the co-sign threshold: ask the owner instead (docs/03 F3).
-      const r = await client.requestSpend({ vault, payee: req.to, amount: req.amount, reason: req.reason });
+      const r = await client.requestSpend({ vault, payee: req.to, amount: req.amount, reason: req.reason, memo: req.memo });
       if (r.ok) {
         return {
           ...base,
