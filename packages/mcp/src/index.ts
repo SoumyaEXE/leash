@@ -9,6 +9,7 @@
  * Env (read from the repo-root .env or the MCP client's env block):
  *   SOLANA_RPC_URL, LEASH_PROGRAM_ID, LEASH_VAULT, AGENT_KEYPAIR_PATH, NEXT_PUBLIC_SITE_URL (for Blink links)
  */
+import { createPrivateKey, sign } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -46,6 +47,21 @@ const leash = new LeashClient({
   wallet: agent,
   blinkBaseUrl: process.env.NEXT_PUBLIC_SITE_URL,
 });
+
+/**
+ * x402 payer authorization (apps/x402-servers/src/payer-auth.ts): the agent key signs (nonce, resource.url) so a
+ * front-runner who copies our public payment tx can't redeem it. ed25519 over UTF-8
+ * "leash-x402-payer:v1" / "nonce:<nonce>" / "resource:<resource.url>", joined with "\n".
+ */
+function payerAuthorization(nonce: string, resourceUrl: string): { payer: string; payerSignature: string } {
+  const b64url = (b: Uint8Array) => Buffer.from(b).toString("base64url");
+  const key = createPrivateKey({
+    key: { kty: "OKP", crv: "Ed25519", d: b64url(agent.secretKey.slice(0, 32)), x: b64url(agent.secretKey.slice(32, 64)) },
+    format: "jwk",
+  });
+  const msg = Buffer.from(`leash-x402-payer:v1\nnonce:${nonce}\nresource:${resourceUrl}`, "utf8");
+  return { payer: agent.publicKey.toBase58(), payerSignature: sign(null, msg, key).toString("base64") };
+}
 
 type Json = Record<string, unknown>;
 const result = (data: Json) => ({
@@ -194,7 +210,7 @@ server.registerTool(
       x402Version: 2,
       resource: pr.resource,
       accepted,
-      payload: { txSignature: String(paid.signature), nonce },
+      payload: { txSignature: String(paid.signature), nonce, ...(pr.resource?.url ? payerAuthorization(nonce, pr.resource.url) : {}) },
     });
     let res = await send({ "PAYMENT-SIGNATURE": proof });
     for (let i = 0; i < 3 && res.status === 402; i++) {
