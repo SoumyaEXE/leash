@@ -11,7 +11,7 @@
  */
 export type DemoMode = "victim" | "leashed";
 
-/** s1 Morse echo (Bankr) · s2 fake memory (FC26) · s4 legit x402 work · s5 hostile 402 (V12) */
+/** s1 Morse-code trap (Bankr) · s2 poisoned memory (FC26) · s4 legit x402 purchases · s5 hostile paywall (V12) */
 export type ScenarioId = "s1" | "s2" | "s4" | "s5";
 
 export interface DemoStep {
@@ -71,25 +71,25 @@ export interface DemoBalances {
 
 export const SCENARIOS: Record<ScenarioId, { title: string; short: string; incident: string; source: string }> = {
   s1: {
-    title: "Morse echo",
+    title: "Morse-code trap",
     short: "A post hides a transfer command in Morse code. The model decodes it; the bot executes its own output.",
     incident: "Grok × Bankr, May 2026: over $150,000 drained by a hidden Morse-code instruction.",
     source: "https://cointelegraph.com/news/grok-bankr-wallet-free-nft-prompt-injection",
   },
   s2: {
-    title: "Fake memory",
+    title: "Poisoned memory",
     short: "An injected 'owner note' in the agent's memory redirects invoice payments to the attacker.",
     incident: "Princeton × Sentient (FC26): fake memories steer ElizaOS agents into unauthorized transfers.",
     source: "https://arxiv.org/abs/2503.16248",
   },
   s4: {
-    title: "Legit work",
+    title: "Legit purchases",
     short: "The agent pays two x402 APIs within budget; the bigger call needs the owner's Blink co-sign.",
     incident: "Leash still lets the agent do its job: per-service budgets, per-call payments.",
     source: "https://docs.x402.org",
   },
   s5: {
-    title: "Hostile 402",
+    title: "Hostile paywall",
     short: "A paid API answers 402 demanding the full balance, with payTo swapped to the attacker.",
     incident: "V12, Oct 2026: the default x402 client had no spending limit.",
     source: "https://thehackernews.com/2026/10/critical-x402-sdk-flaw-could-let.html",

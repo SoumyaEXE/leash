@@ -12,7 +12,8 @@ import { Nav } from "../site/nav";
 import { ResultCard } from "./result-card";
 
 const ORDER: ScenarioId[] = ["s1", "s2", "s5", "s4"];
-const LABEL: Record<ScenarioId, string> = { s1: "S1 · Morse echo", s2: "S2 · Fake memory", s5: "S5 · Hostile 402", s4: "S4 · Legit work" };
+/** Tab labels come from the scenario titles, in the order a viewer should watch them. */
+const LABEL: Record<ScenarioId, string> = { s1: SCENARIOS.s1.title, s2: SCENARIOS.s2.title, s5: SCENARIOS.s5.title, s4: SCENARIOS.s4.title };
 
 type PanelState = { run: DemoRunResult | null; visible: number; showPayments: boolean };
 

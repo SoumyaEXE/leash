@@ -187,7 +187,7 @@ function ReplayMock() {
             <span className="h-2 w-2 rounded-full bg-[#f53f16]" />
             <span className="text-white/60">Replay</span>
             <span className="text-white/40">/</span>
-            S1 · Morse echo · devnet
+            Morse-code trap · devnet
           </div>
           <span className="rounded-full bg-white/10 px-3 py-1 font-mono text-[11px] text-white/70">same model</span>
         </div>
@@ -282,9 +282,9 @@ const TILES: Tile[] = [
   { tag: "LW", t: "Lobstar Wilde", sub: "Feb 2026 · Solana", v: "~$441k", note: "sent to a stranger", tone: "bad", href: "https://cointelegraph.com/news/openai-employee-s-ai-agent-accidentally-sent-442k-to-beggar" },
   { tag: "x4", t: "x402 SDK flaw", sub: "Oct 2026 · V12", v: "100%", note: "of the balance, on request", tone: "bad", href: "https://thehackernews.com/2026/10/critical-x402-sdk-flaw-could-let.html" },
   { tag: "FM", t: "Fake memories", sub: "FC26 · ElizaOS", v: "1 note", note: "redirected payments", tone: "bad", href: "https://arxiv.org/abs/2503.16248" },
-  { tag: "S1", t: "Morse echo", sub: "Leash replay · devnet", v: "6004", note: "PayeeNotAuthorized", tone: "ok", href: PROOF.s1LeashedBlocked },
-  { tag: "S5", t: "Hostile 402", sub: "Leash replay · devnet", v: "6004", note: "full balance refused", tone: "ok", href: PROOF.s5Blocked },
-  { tag: "S4", t: "Legit x402 call", sub: "Leash · devnet", v: "0.05", note: "paid within budget", tone: "ok", href: PROOF.s4Paid },
+  { tag: "S1", t: "Morse-code trap", sub: "Leash replay · devnet", v: "6004", note: "PayeeNotAuthorized", tone: "ok", href: PROOF.s1LeashedBlocked },
+  { tag: "S5", t: "Hostile paywall", sub: "Leash replay · devnet", v: "6004", note: "full balance refused", tone: "ok", href: PROOF.s5Blocked },
+  { tag: "S4", t: "Legit purchase", sub: "Leash · devnet", v: "0.05", note: "paid within budget", tone: "ok", href: PROOF.s4Paid },
   { tag: "BL", t: "Blink co-sign", sub: "Leash · devnet", v: "0.25", note: "approved by the owner", tone: "ok", href: PROOF.blinkApproved },
 ];
 

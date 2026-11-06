@@ -10,7 +10,7 @@ pnpm --filter web build
 | Route | What |
 |---|---|
 | `/` | Landing: incidents with sources, the seven policy layers, the three owner-signed release paths, prior work |
-| `/demo` | Split-screen attack replay (S1 Morse echo, S2 fake memory, S5 hostile 402, S4 legit work). Talks to the agent server (`NEXT_PUBLIC_AGENT_SERVER_URL`: `GET /balances`, `POST /run-split`, `POST /reset`). `/demo?mock=1` uses canned data for UI work and backup recordings. |
+| `/demo` | Split-screen attack replay (Morse-code trap, poisoned memory, hostile paywall, legit purchases). Talks to the agent server (`NEXT_PUBLIC_AGENT_SERVER_URL`: `GET /balances`, `POST /run-split`, `POST /reset`). `/demo?mock=1` uses canned data for UI work and backup recordings. |
 | `/vault` | Owner dashboard: balance, caps, 24h meter, kill switch, tripwire strikes, payees, mandates (owner tx or off-chain `signMessage`), pending co-sign requests, live activity |
 | `/arena` | Red Team Arena: chat with Warden (You.com Answer API), scoreboard, recent attempts |
 | `/approve?request=<pda>` | Our own Blink renderer for the approve/reject Action (Phantom signs the same tx dial.to would get) |
