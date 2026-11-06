@@ -254,11 +254,22 @@ async function verify(sigs: string[]): Promise<void> {
     }
     const failed = parseLeashErrorFromLogs(tx.logs);
     const paid = tx.events.find((e) => e.name === "SpendExecuted");
-    const detail = tx.err
+    let detail = tx.err
       ? `FAILED onchain · ${failed ? `${failed.name} (${failed.code})` : JSON.stringify(tx.err)}`
       : paid && paid.name === "SpendExecuted"
         ? `OK · SpendExecuted ${fromBaseUnits(paid.data.amount)} dUSDC → ${paid.data.payee.toBase58()} via ${paid.data.via}`
         : "OK";
+    if (!tx.err && !paid) {
+      // not a Leash payment (e.g. an x402 "exact" transfer): show who received dUSDC
+      const raw = await connection().getTransaction(sig, { commitment: "confirmed", maxSupportedTransactionVersion: 0 });
+      const mint = s.mint?.toBase58();
+      const pre = new Map((raw?.meta?.preTokenBalances ?? []).filter((b) => b.mint === mint).map((b) => [b.owner, BigInt(b.uiTokenAmount.amount)]));
+      for (const b of raw?.meta?.postTokenBalances ?? []) {
+        if (b.mint !== mint || !b.owner) continue;
+        const delta = BigInt(b.uiTokenAmount.amount) - (pre.get(b.owner) ?? 0n);
+        if (delta > 0n) detail += ` · ${fromBaseUnits(delta)} dUSDC → ${b.owner}`;
+      }
+    }
     console.log(`${sig}\n  ${detail}\n  ${explorerTx(sig)}`);
   }
 }
