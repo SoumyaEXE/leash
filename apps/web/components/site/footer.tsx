@@ -30,7 +30,7 @@ const COLS: { title: string; links: { label: string; href: string; external?: bo
   },
 ];
 
-const INSTALL = "pnpm add @leash/sdk";
+const INSTALL = "pnpm add @soumyaexe/leash-sdk";
 
 /** Template footer: brand + tagline, two link columns, the install pill, and a giant wordmark melting into the glow. */
 export function Footer() {

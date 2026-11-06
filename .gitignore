@@ -22,3 +22,6 @@ recordings/
 .reanimate/
 apps/agent/data/
 apps/web/data/
+
+# staged npm package (packages/sdk/scripts/stage-public.mjs)
+.publish/

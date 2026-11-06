@@ -397,7 +397,7 @@ export function Integrate() {
     {
       t: "TypeScript SDK",
       d: "spend(), co-sign requests, owner transactions and a live activity feed.",
-      code: "pnpm add @leash/sdk",
+      code: "pnpm add @soumyaexe/leash-sdk",
       icon: <Code size={30} strokeWidth={1.8} />,
     },
     {
