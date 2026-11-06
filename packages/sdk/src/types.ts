@@ -80,6 +80,8 @@ export interface RequestState {
   createdAt: number;
   expiresAt: number;
   status: RequestStatus;
+  /** x402 payment nonce, emitted in SpendExecuted when the owner approves */
+  memo?: Uint8Array | null;
 }
 
 export interface SpendArgs {
@@ -236,6 +238,8 @@ export interface ILeashClient {
     payee: PublicKey;
     amount: bigint;
     reason: string;
+    /** optional 32-byte x402 nonce, carried to SpendExecuted on approval */
+    memo?: Uint8Array;
   }): Promise<RequestSpendResult>;
 
   onActivity(vault: PublicKey, cb: (e: ActivityEvent) => void): () => void;

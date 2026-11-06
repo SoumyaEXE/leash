@@ -1,0 +1,33 @@
+{
+  "name": "agent",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Leash demo agents: the same model and pipeline with two wallet backends (unprotected victim vs Leash vault)",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "demo:victim": "tsx src/cli.ts victim",
+    "demo:leashed": "tsx src/cli.ts leashed",
+    "demo:split": "tsx src/cli.ts split",
+    "demo:legit": "tsx src/cli.ts leashed --scenario s4",
+    "reset": "tsx src/cli.ts reset",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@leash/llm": "workspace:*",
+    "@leash/sdk": "workspace:*",
+    "@solana/spl-token": "^0.4.15",
+    "@solana/web3.js": "^1.99.0",
+    "@x402/core": "2.30.0",
+    "dotenv": "^17.2.3",
+    "express": "^5.3.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "5.9.3"
+  }
+}

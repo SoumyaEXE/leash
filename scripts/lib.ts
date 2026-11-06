@@ -8,7 +8,7 @@ export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 export const ENV_PATH = resolve(ROOT, ".env");
 loadEnv({ path: ENV_PATH });
 
-export const KEY_NAMES = ["owner", "agent", "victim", "attacker", "merchant", "leash-program"] as const;
+export const KEY_NAMES = ["owner", "agent", "victim", "attacker", "merchant", "research", "leash-program"] as const;
 export type KeyName = (typeof KEY_NAMES)[number];
 
 export function keyPath(name: KeyName): string {

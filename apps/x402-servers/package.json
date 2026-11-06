@@ -1,0 +1,28 @@
+{
+  "name": "x402-servers",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Paid demo APIs (x402 v2) for Leash: market data, research, and the S5 Hostile 402 replay. Verifies the custom 'leash' scheme from onchain SpendExecuted events.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@leash/llm": "workspace:*",
+    "@leash/sdk": "workspace:*",
+    "@solana/spl-token": "^0.4.15",
+    "@solana/web3.js": "^1.99.0",
+    "@x402/core": "2.30.0",
+    "dotenv": "^17.2.3",
+    "express": "^5.3.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "5.9.3"
+  }
+}

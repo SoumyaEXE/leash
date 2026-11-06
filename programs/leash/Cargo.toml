@@ -1,0 +1,42 @@
+[package]
+name = "leash"
+version = "0.1.0"
+description = "Onchain mandates for AI agent wallets: owner-signed payees, mandates and co-signs, enforced by the program"
+license = "MIT"
+edition.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "leash"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+anchor-debug = []
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+anchor-lang = "1.2.2"
+anchor-spl = "1.2.2"
+# Anchor 1.x: the old solana_program::sysvar::instructions::load_* path is gone; match anchor-lang's v3 cohort.
+solana-instructions-sysvar = "3"
+solana-sdk-ids = "3.1"
+
+[dev-dependencies]
+# Same pins as `anchor init --test-template litesvm` (Anchor 1.2.2).
+litesvm = "0.15.0"
+solana-message = "4"
+solana-transaction = "4"
+solana-signer = "3"
+solana-keypair = "3"
+# Extra for the harness: write token accounts directly and warp the clock.
+solana-account = "3"
+solana-clock = "3"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

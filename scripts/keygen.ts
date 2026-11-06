@@ -11,6 +11,7 @@ for (const name of KEY_NAMES) {
 setEnv({
   ATTACKER_PUBKEY: out.attacker,
   MERCHANT_PUBKEY: out.merchant,
+  RESEARCH_PUBKEY: out.research,
   LEASH_PROGRAM_ID: out["leash-program"],
   NEXT_PUBLIC_LEASH_PROGRAM_ID: out["leash-program"],
 });

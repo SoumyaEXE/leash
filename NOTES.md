@@ -49,3 +49,25 @@ Specs live in the planning kit (`../leash-solana-hackathon/docs/`). Anything her
 - The agent's reason text is attached as an **SPL Memo** (`leash:reason:<text>`) in the same tx, so the explorer and
   the activity feed show *why* the agent paid, even for failed (blocked) txs. `reason_hash` still goes onchain.
 - `request_spend` accepts any amount (not only ≥ threshold); the owner still approves.
+
+### Program details decided during the build (vs `docs/04`)
+- **Check order, step 4:** "recipient owner == authorizing payee" needs to know *who* is authorized, so the program
+  first resolves the authorization account (payee PDA, else mandate; none → `PayeeNotAuthorized`), then matches the
+  recipient token account (`RecipientMismatch`), then applies limits. Inactive payee → `PayeeNotAuthorized`.
+- **Recipient is an `UncheckedAccount`**, validated in the handler, so a missing/foreign token account becomes a named
+  Leash error (and the tripwire can record it). Arena visitors usually have no dUSDC account.
+- **Tripwire:** `RequiresCosign` (and `Overflow`, `InsufficientFunds`) stay hard errors in `guarded_spend`. A big
+  legitimate payment needs a co-sign, not a strike. `set_paused(false)` also clears strikes.
+- **`request_spend` checks authorization up front** (allowlist/mandate + per-tx limits), so a hijacked agent can't spam
+  the owner with requests to the attacker. It also carries an optional `memo` (x402 nonce) that `approve_request`
+  emits in `SpendExecuted`, so a Blink-approved payment still settles the x402 call.
+- **Signed mandate message:** UTF-8 `"LEASH_MANDATE_V1:" + lowercase_hex(borsh(MandateTerms))`, signed with a plain
+  wallet `signMessage`. The program rebuilds it and requires an exact match. `nonce = vault.mandate_seq`.
+- **Per-service budgets:** each paid API is its own payee wallet (`MERCHANT_PUBKEY` = Market Data API,
+  `RESEARCH_PUBKEY` = Research API), because payee PDAs are keyed by wallet.
+- **SDK without IDL codegen:** `@leash/sdk` encodes instructions / decodes accounts and events by hand from the Rust
+  layouts (Anchor discriminators = sha256(`global:`/`account:`/`event:` + name)[..8]), so it works in Node and the
+  browser with no generated client. Events are only trusted when emitted while the Leash program is the innermost
+  running program.
+- **Devnet funding:** the RPC faucet is closed (`410 Gone`). Fund only the owner at faucet.solana.com; setup moves fee
+  SOL to the other wallets.
