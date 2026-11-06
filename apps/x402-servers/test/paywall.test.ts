@@ -1,7 +1,7 @@
 /**
  * Off-chain security tests for the x402 paywall: nonce store (atomic reserve, release, commit, bounds), payer
  * authorization, and the race the reservation closes. The onchain verifiers are replaced by fakes; the chain path
- * is covered by test/live-devnet.ts. Run: pnpm --filter x402-servers test
+ * is covered by apps/agent/test/live-x402.ts. Run: pnpm --filter x402-servers test
  */
 import assert from "node:assert/strict";
 import type { Server } from "node:http";

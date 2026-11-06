@@ -3,9 +3,10 @@
  * approve_request for co-signed amounts) and sends us the tx signature. We verify from the chain:
  *   tx confirmed & succeeded → invoked LEASH_PROGRAM_ID → payTo's token balance really went up → a SpendExecuted
  *   event (emitted inside the Leash frame) with payee == payTo, amount >= required, and either
- *     - memo == nonce (agent_spend / guarded_spend), or
- *     - via == request and the named SpendRequest account (owned by the program, referenced by this tx) is
- *       approved, for this payee/amount, with memo == nonce (co-signed; the event itself has no request key).
+ *     - memo == nonce: agent_spend / guarded_spend, and approve_request too (the deployed program copies the
+ *       request's memo into SpendExecuted; verified on devnet Nov 6), or
+ *     - fallback for a memo-less co-signed event: via == request and the named SpendRequest account (owned by
+ *       the program, referenced by this tx) is approved, for this payee/amount, with memo == nonce.
  * The returned `authority` is the vault's agent key read from chain: the paywall requires the payer
  * authorization (payer-auth.ts) to be signed by it.
  */
