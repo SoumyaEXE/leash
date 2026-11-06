@@ -82,10 +82,41 @@ body {
   color: #fff;
 }
 
+/*
+ * Keyboard focus: a light ring with a dark gap, visible on black, on cards and on the brand-red pills.
+ * No border-radius here: unlayered CSS beats Tailwind's layered rounded-* utilities, and the outline already
+ * follows the element's own radius.
+ */
 :focus-visible {
-  outline: 2px solid rgb(245 63 22 / 0.8);
-  outline-offset: 2px;
-  border-radius: 8px;
+  outline: 2px solid #ffb39f;
+  outline-offset: 3px;
+}
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline-offset: 1px;
+}
+/* skip-link target and programmatic focus on containers: no ring around the whole page */
+main:focus,
+[tabindex="-1"]:focus {
+  outline: none;
+}
+
+.skip-link {
+  position: fixed;
+  left: 16px;
+  top: 12px;
+  z-index: 100;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: #d32800;
+  color: #fff;
+  font-size: 16px;
+  transform: translateY(-160%);
+  transition: transform 160ms var(--ease-out);
+}
+.skip-link:focus {
+  transform: none;
 }
 
 .tabular {
@@ -252,6 +283,21 @@ body {
   background: rgb(211 40 0 / 0.16);
   border: 1px solid rgb(245 63 22 / 0.45);
   white-space: nowrap;
+}
+
+/* larger chip for result cards (read at 1080p in the demo video) */
+.err-chip-lg {
+  height: 34px;
+  padding: 0 14px;
+  font-size: 15px;
+}
+
+/* transcript monospace: a size up and a little air, so hashes and Morse don't turn into a grey block */
+.mono-read {
+  font-family: var(--font-mono);
+  letter-spacing: 0.01em;
+  word-spacing: 0.08em;
+  line-height: 1.7;
 }
 
 .kbd {

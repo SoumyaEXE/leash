@@ -7,7 +7,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { SCENARIOS, type DemoBalances, type DemoRunResult, type DemoStep, type ScenarioId } from "@leash/sdk/demo";
 import { ENV } from "@/lib/env";
 import { mockBalances, mockRun } from "@/lib/demo-mock";
-import { Badge, Container, Reveal } from "../cx/primitives";
+import { Badge, Container, Reveal, Sparkle } from "../cx/primitives";
+import { prefersReducedMotion } from "../motion/reduced-motion";
 import { Nav } from "../site/nav";
 import { ResultCard } from "./result-card";
 
@@ -16,6 +17,22 @@ const ORDER: ScenarioId[] = ["s1", "s2", "s5", "s4"];
 const LABEL: Record<ScenarioId, string> = { s1: SCENARIOS.s1.title, s2: SCENARIOS.s2.title, s5: SCENARIOS.s5.title, s4: SCENARIOS.s4.title };
 
 type PanelState = { run: DemoRunResult | null; visible: number; showPayments: boolean };
+
+/**
+ * What is shared between the two panels, said plainly (red team A6): in the model scenarios the agent server
+ * makes one model call per run and both bots read that same answer; the x402 scenarios have no model at all.
+ */
+const ONE_CALL = "Both panels show the same single model call: the server asks the model once and hands that answer to both bots.";
+const SHARED_NOTE: Record<ScenarioId | "none", string> = {
+  none: ONE_CALL,
+  s1: ONE_CALL,
+  s2: ONE_CALL,
+  s5: "No model in this run: both agents call the same hostile paid API and get the same 402.",
+  s4: "No model in this run: both agents call the same two paid APIs.",
+};
+
+/** Text of the run's model step, used to show that both panels display the same output. */
+const modelText = (run: DemoRunResult | null) => run?.steps.find((x) => x.kind === "model")?.text ?? null;
 
 function Balance({ value, unit = "dUSDC" }: { value: number | null; unit?: string }) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -27,7 +44,7 @@ function Balance({ value, unit = "dUSDC" }: { value: number | null; unit?: strin
     const o = { v: from };
     const t = gsap.to(o, {
       v: value,
-      duration: from === value ? 0 : 1.2,
+      duration: from === value || prefersReducedMotion() ? 0 : 1.2,
       ease: "power3.out",
       onUpdate: () => {
         if (ref.current) ref.current.textContent = o.v.toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -45,59 +62,103 @@ function Balance({ value, unit = "dUSDC" }: { value: number | null; unit?: strin
   );
 }
 
-function Step({ s }: { s: DemoStep }) {
+/** Morse, base58 addresses and signatures read as code; everything else as prose. */
+const looksLikeCode = (t: string) => /^[-./ ]+$/.test(t) ||/[1-9A-HJ-NP-Za-km-z]{32,}/.test(t);
+
+function Step({ s, shared }: { s: DemoStep; shared?: boolean }) {
   const ref = useRef<HTMLLIElement>(null);
   useEffect(() => {
-    if (ref.current) gsap.fromTo(ref.current, { opacity: 0, y: 8, filter: "blur(6px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.45, ease: "power3.out" });
+    if (ref.current && !prefersReducedMotion())
+      gsap.fromTo(ref.current, { opacity: 0, y: 8, filter: "blur(6px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.45, ease: "power3.out" });
   }, []);
   const model = s.kind === "model";
   return (
-    <li ref={ref} className="grid grid-cols-[132px_1fr] gap-4 border-b border-white/[0.07] py-3 last:border-0">
-      <span className="pt-0.5 text-[14px] text-white/55">{s.label}</span>
-      <span
-        className={`break-words text-[15px] leading-6 ${model ? "rounded-[14px] border border-white/10 bg-white/[0.05] px-3.5 py-2 font-mono text-[14px] text-white" : s.kind === "error" ? "text-[#ffb0a6]" : /^[.-/ ]+$/.test(s.text) || /[1-9A-HJ-NP-Za-km-z]{32,}/.test(s.text) ? "font-mono text-[13px] text-white/70" : "text-white/85"}`}
-      >
-        {s.text}
-      </span>
+    <li ref={ref} className="grid grid-cols-[minmax(112px,148px)_1fr] gap-5 border-b border-white/[0.07] py-3.5 last:border-0">
+      <span className="pt-0.5 text-[15px] leading-6 text-white/65">{s.label}</span>
+      {model ? (
+        <span className="min-w-0">
+          <span className="mono-read block rounded-[14px] border border-white/15 bg-white/[0.06] px-4 py-2.5 text-[16px] text-white [overflow-wrap:anywhere]">{s.text}</span>
+          {shared && (
+            <span className="mt-2 inline-flex items-center gap-2 text-[14px] text-white/70">
+              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-white/70" />
+              One model call, same output in both panels
+            </span>
+          )}
+        </span>
+      ) : (
+        <span
+          className={`min-w-0 [overflow-wrap:anywhere] ${s.kind === "error" ? "text-[17px] leading-[27px] text-[#ffb0a6]" : looksLikeCode(s.text) ? "mono-read text-[15px] text-white/80" : "text-[17px] leading-[27px] text-white/90"}`}
+        >
+          {s.text}
+        </span>
+      )}
     </li>
   );
 }
 
-function Panel({ title, tag, balance, before, state, mock, accent }: { title: string; tag: string; balance: number | null; before: number | null; state: PanelState; mock: boolean; accent: "plain" | "leash" }) {
+function Panel({
+  title,
+  tag,
+  balance,
+  before,
+  state,
+  mock,
+  accent,
+  sharedModel,
+}: {
+  title: string;
+  tag: string;
+  balance: number | null;
+  before: number | null;
+  state: PanelState;
+  mock: boolean;
+  accent: "plain" | "leash";
+  sharedModel: boolean;
+}) {
   const run = state.run;
+  const headingId = `panel-${accent}`;
   return (
-    <section className="cx-border cx-card flex min-h-0 flex-col overflow-hidden rounded-[20px]" style={{ ["--cx-angle" as string]: accent === "leash" ? "120deg" : "200deg" }}>
+    <section aria-labelledby={headingId} className="cx-border cx-card flex min-h-0 flex-col overflow-hidden rounded-[20px]" style={{ ["--cx-angle" as string]: accent === "leash" ? "120deg" : "200deg" }}>
       <div className="flex items-end justify-between gap-6 border-b border-white/10 px-7 pb-6 pt-6">
         <div>
-          <div className="text-[14px] text-white/55">{tag}</div>
-          <h2 className="mt-1 text-[24px] tracking-[-0.5px]">{title}</h2>
+          <div className="text-[15px] text-white/65">{tag}</div>
+          <h2 id={headingId} className="mt-1 text-[28px] leading-9 tracking-[-0.5px]">
+            {title}
+          </h2>
         </div>
         <div className="text-right">
-          <div className="text-[14px] text-white/55">{accent === "leash" ? "Vault balance" : "Wallet balance"}</div>
-          <div className="mt-1 text-[40px] leading-none tracking-[-1px]">
-            {before !== null && run && before !== balance && <span className="mr-3 text-[0.5em] opacity-40 line-through">{before.toLocaleString("en-US")}</span>}
+          <div className="text-[15px] text-white/65">{accent === "leash" ? "Vault balance" : "Wallet balance"}</div>
+          <div className="mt-1 whitespace-nowrap text-[48px] leading-none tracking-[-1px]">
+            {before !== null && run && before !== balance && (
+              <span className="mr-3 text-[0.45em] opacity-50 line-through">
+                <span className="sr-only">was </span>
+                {before.toLocaleString("en-US")}
+              </span>
+            )}
             <Balance value={balance} />
           </div>
         </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-4 px-7 py-5">
         {!run ? (
-          <div className="flex flex-1 items-center justify-center text-[16px] text-white/45">Pick a scenario. Both agents get the exact same input.</div>
+          <div className="flex flex-1 items-center justify-center text-center text-[18px] text-white/60">Pick a scenario. Both agents get the exact same input.</div>
         ) : (
           <>
             <ol className="min-h-0 flex-1 overflow-y-auto">
               {run.steps.slice(0, state.visible).map((s, i) => (
-                <Step key={`${run.scenario}-${i}`} s={s} />
+                <Step key={`${run.scenario}-${i}`} s={s} shared={sharedModel && s.kind === "model"} />
               ))}
             </ol>
-            {state.showPayments && (
-              <div className="flex flex-col gap-3">
-                {run.payments.map((p, i) => (
-                  <ResultCard key={`${run.scenario}-${i}-${p.status}`} p={p} mock={mock} />
-                ))}
-                {!run.ok && run.error && <div className="text-[15px] text-[#ffb0a6]">{run.error}</div>}
-              </div>
-            )}
+            <div aria-live="polite" className="flex flex-col gap-3">
+              {state.showPayments && (
+                <>
+                  {run.payments.map((p, i) => (
+                    <ResultCard key={`${run.scenario}-${i}-${p.status}`} p={p} mock={mock} leashed={accent === "leash"} />
+                  ))}
+                  {!run.ok && run.error && <div className="text-[17px] text-[#ffb0a6]">{run.error}</div>}
+                </>
+              )}
+            </div>
           </>
         )}
       </div>
@@ -231,11 +292,14 @@ export function DemoClient() {
 
   const victimBal = balances ? Number(balances.victim.balance) : null;
   const vaultBal = balances ? Number(balances.vault.balance) : null;
+  const vModel = modelText(victim.run);
+  const sharedModel = vModel !== null && vModel === modelText(leashed.run);
 
   return (
     <div className="flex min-h-screen flex-col">
       <Nav />
-      <header className="relative overflow-hidden pt-[150px]">
+      <main id="main" tabIndex={-1} className="flex flex-1 flex-col">
+      <div className="relative overflow-hidden pt-[150px]">
         <div aria-hidden className="pointer-events-none absolute left-1/2 top-[-440px] h-[760px] w-[1000px] -translate-x-1/2 rounded-full blur-[130px]" style={{ background: "rgb(252 109 1 / 0.36)" }} />
         <Container className="relative flex flex-col items-center pb-10 text-center">
           <Reveal>
@@ -249,13 +313,12 @@ export function DemoClient() {
             {active ? SCENARIOS[active].incident : "Both agents read the same post and get the same model output. Only the wallet is different."}
           </Reveal>
           <Reveal delay={220} className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <div role="tablist" aria-label="Scenario" className="inline-flex flex-wrap justify-center gap-1 rounded-[60px] bg-white/[0.04] p-1.5 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.1)] backdrop-blur-[10px]">
+            <div role="group" aria-label="Run a scenario" className="inline-flex flex-wrap justify-center gap-1 rounded-[60px] bg-white/[0.04] p-1.5 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.1)] backdrop-blur-[10px]">
               {ORDER.map((s) => (
                 <button
                   key={s}
                   type="button"
-                  role="tab"
-                  aria-selected={active === s}
+                  aria-pressed={active === s}
                   disabled={!!busy || (offline && !mock)}
                   onClick={() => void runScenario(s)}
                   className={`h-11 rounded-[60px] px-5 text-[16px] transition-[background-color,color,box-shadow] duration-200 disabled:opacity-40 ${
@@ -270,8 +333,12 @@ export function DemoClient() {
               {busy === "reset" ? "Resetting…" : "Reset balances"}
             </button>
           </Reveal>
+          <Reveal delay={260} as="p" className="mt-6 flex max-w-[760px] items-start justify-center gap-2.5 text-[16px] leading-[25px] text-white/75">
+            <Sparkle size={16} className="mt-[4px] shrink-0" />
+            <span>{SHARED_NOTE[active ?? "none"]}</span>
+          </Reveal>
         </Container>
-      </header>
+      </div>
       <Container className="flex flex-1 flex-col pb-10">
       {offline && !mock && (
         <div className="mt-2 rounded-[20px] border border-[#f5a524]/40 bg-[#f5a524]/[0.07] px-6 py-4 text-[15px] leading-6">
@@ -283,13 +350,14 @@ export function DemoClient() {
         </div>
       )}
       {notice && <div className="mt-2 rounded-[20px] border border-white/15 px-6 py-3 text-[15px]">{notice}</div>}
-      {mock && <div className="mt-2 text-center text-[13px] text-white/50">Mock mode: canned data, not onchain</div>}
+      {mock && <div className="mt-2 text-center text-[14px] text-white/65">Mock mode: canned data, not onchain</div>}
 
-      <div className="mt-4 grid min-h-[560px] flex-1 gap-4 lg:grid-cols-2">
-        <Panel title="Unprotected agent" tag="Hot wallet · Bankr pattern" balance={victimBal} before={before?.v ?? null} state={victim} mock={mock} accent="plain" />
-        <Panel title="Leashed agent" tag="Leash vault · onchain policy" balance={vaultBal} before={before?.l ?? null} state={leashed} mock={mock} accent="leash" />
+      <div data-demo-panels className="mt-4 grid min-h-[560px] flex-1 gap-4 lg:grid-cols-2">
+        <Panel title="Unprotected agent" tag="Hot wallet · Bankr pattern" balance={victimBal} before={before?.v ?? null} state={victim} mock={mock} accent="plain" sharedModel={sharedModel} />
+        <Panel title="Leashed agent" tag="Leash vault · onchain policy" balance={vaultBal} before={before?.l ?? null} state={leashed} mock={mock} accent="leash" sharedModel={sharedModel} />
       </div>
       </Container>
+      </main>
     </div>
   );
 }

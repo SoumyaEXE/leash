@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
+import { prefersReducedMotion } from "../motion/reduced-motion";
 import { Check, ChevronDown, Copy, Pause, Plus, Shield } from "./icons";
 import { Arrow, Badge, Reveal } from "./primitives";
 
@@ -43,12 +44,19 @@ export function Hero() {
 
 /* ───────────── collage ───────────── */
 
-/** Scroll progress of the collage, written to a CSS variable so every layer can derive its own transform. */
+/**
+ * Scroll progress of the collage, written to a CSS variable so every layer can derive its own transform.
+ * With reduced motion the cards sit in their final place and nothing moves with the scroll.
+ */
 function useScrollProgress<T extends HTMLElement>() {
   const ref = useRef<T>(null);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    if (prefersReducedMotion()) {
+      el.style.setProperty("--p", "1");
+      return;
+    }
     let raf = 0;
     const update = () => {
       raf = 0;
@@ -91,7 +99,8 @@ function Slide({ side, x, y, w, rotate = 0, children, className = "" }: { side: 
 function DeviceCollage() {
   const ref = useScrollProgress<HTMLDivElement>();
   return (
-    <div ref={ref} className="relative mx-auto mt-[188px] h-[640px] max-w-[1440px]" style={{ ["--p" as string]: 0 }}>
+    // decorative: a mock of the vault UI; the real one is at /vault
+    <div ref={ref} aria-hidden className="relative mx-auto mt-[188px] h-[640px] max-w-[1440px]" style={{ ["--p" as string]: 0 }}>
       {/* the template's flare, lit by scroll */}
       <img
         src="/cx/flare-hero.webp"

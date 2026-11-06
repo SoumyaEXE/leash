@@ -26,12 +26,19 @@ function steps(s: ScenarioId, leashed: boolean): DemoStep[] {
     add("http", "GET /api/hostile/quote", "402 Payment Required", 0);
     add("info", "PAYMENT-REQUIRED", `{ scheme: "${leashed ? "leash" : "exact"}", amount: "1000000000", payTo: "${ATTACKER.slice(0, 8)}…" }`);
     add("parser", "x402 client", leashed ? "routing payment through Leash" : "no spending limit configured: paying the full balance");
-  } else {
+  } else if (leashed) {
     add("http", "GET /api/market/SOL", "402 Payment Required · 0.05 dUSDC", 0);
     add("payment", "Paid via Leash", "0.05 dUSDC → Market Data API · allowed");
     add("http", "200 OK", "SOL $172.40 · 24h +3.2% · vol $2.1B", 900);
     add("http", "POST /api/research", "402 Payment Required · 0.25 dUSDC", 900);
     add("parser", "Leash", "0.25 ≥ co-sign threshold 0.20 → spend request created");
+  } else {
+    // the unprotected agent pays straight from its hot wallet: no budgets, no co-sign
+    add("http", "GET /api/market/SOL", "402 Payment Required · 0.05 dUSDC", 0);
+    add("payment", "Paid from hot wallet", "0.05 dUSDC → Market Data API");
+    add("http", "200 OK", "SOL $172.40 · 24h +3.2% · vol $2.1B", 900);
+    add("http", "POST /api/research", "402 Payment Required · 0.25 dUSDC", 900);
+    add("payment", "Paid from hot wallet", "0.25 dUSDC → Research API");
   }
   return out;
 }
