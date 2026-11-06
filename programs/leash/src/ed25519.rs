@@ -5,32 +5,18 @@
 //! - all three instruction indices == u16::MAX, so offsets point into *this* instruction's data and can't be
 //!   redirected at bytes in another instruction,
 //! - every offset + length in bounds,
-//! - signer pubkey == vault.owner, message bytes == expected (prefix + hex(borsh(terms))).
+//! - signer pubkey == vault.owner, message bytes == the readable mandate message the program rebuilt
+//!   (`mandate_msg::mandate_message`: program id, cluster, vault, payee, mint, UI amounts, ISO expiry, nonce, intent).
 
 use anchor_lang::prelude::*;
 use solana_instructions_sysvar::{load_current_index_checked, load_instruction_at_checked};
 
 use crate::errors::LeashError;
-use crate::state::{MandateTerms, MANDATE_MESSAGE_PREFIX};
 
 const HEADER_LEN: usize = 2; // num_signatures u8 + padding u8
 const OFFSETS_LEN: usize = 14; // 7 x u16
 const PUBKEY_LEN: usize = 32;
 const SIGNATURE_LEN: usize = 64;
-
-/// `"LEASH_MANDATE_V1:" || lowercase_hex(borsh(terms))`. UTF-8 so any wallet's signMessage can display it.
-pub fn mandate_message(terms: &MandateTerms) -> Result<Vec<u8>> {
-    let mut raw = Vec::with_capacity(128);
-    terms.serialize(&mut raw).map_err(|_| error!(LeashError::InvalidMandateSignature))?;
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    let mut msg = Vec::with_capacity(MANDATE_MESSAGE_PREFIX.len() + raw.len() * 2);
-    msg.extend_from_slice(MANDATE_MESSAGE_PREFIX);
-    for b in raw {
-        msg.push(HEX[(b >> 4) as usize]);
-        msg.push(HEX[(b & 0x0f) as usize]);
-    }
-    Ok(msg)
-}
 
 fn u16_at(data: &[u8], at: usize) -> Result<u16> {
     let bytes = data.get(at..at + 2).ok_or(error!(LeashError::InvalidMandateSignature))?;

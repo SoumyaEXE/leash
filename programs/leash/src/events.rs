@@ -11,6 +11,8 @@ pub struct SpendExecuted {
     pub memo: Option<[u8; 32]>,
     pub via: AuthKind,
     pub ts: i64,
+    /// The co-signed SpendRequest this payment settles (approve_request), so a verifier can bind the payment to it.
+    pub request: Option<Pubkey>,
 }
 
 #[event]
@@ -84,11 +86,52 @@ pub struct PaymentBlocked {
     pub blocked_count: u64,
     pub strikes: u8,
     pub ts: i64,
+    /// true = unauthorized attempt (unknown payee or redirected recipient) that counted as a strike;
+    /// false = benign block (cap, budget, expiry...) recorded without a strike.
+    pub strike: bool,
 }
 
 #[event]
 pub struct VaultFrozen {
     pub vault: Pubkey,
     pub strikes: u8,
+    pub ts: i64,
+}
+
+/// Owner moved funds out of the vault.
+#[event]
+pub struct Withdrawn {
+    pub vault: Pubkey,
+    pub to: Pubkey,
+    pub amount: u64,
+    pub ts: i64,
+}
+
+/// Owner cancelled every unredeemed signed mandate with a nonce below `mandate_seq`.
+#[event]
+pub struct MandateSeqBumped {
+    pub vault: Pubkey,
+    pub mandate_seq: u64,
+    pub ts: i64,
+}
+
+#[event]
+pub struct MandateClosed {
+    pub vault: Pubkey,
+    pub mandate: Pubkey,
+    pub ts: i64,
+}
+
+/// An expired spend request was closed (permissionless crank); rent went back to the agent.
+#[event]
+pub struct RequestClosed {
+    pub vault: Pubkey,
+    pub request: Pubkey,
+    pub ts: i64,
+}
+
+#[event]
+pub struct VaultClosed {
+    pub vault: Pubkey,
     pub ts: i64,
 }

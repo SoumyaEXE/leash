@@ -19,8 +19,10 @@ pub struct InitializeVault<'info> {
     )]
     pub vault: Account<'info, Vault>,
     pub mint: InterfaceAccount<'info, Mint>,
+    /// `init_if_needed`: the vault PDA (and so its ATA address) is predictable, and anyone can create an ATA for any
+    /// owner. A pre-created ATA must not brick this vault_id. Anchor still checks it is the ATA of (vault, mint).
     #[account(
-        init,
+        init_if_needed,
         payer = owner,
         associated_token::mint = mint,
         associated_token::authority = vault,
@@ -32,7 +34,7 @@ pub struct InitializeVault<'info> {
     pub system_program: Program<'info, System>,
 }
 
-/// Owner-only changes to the vault itself (policy, agent, pause, strikes).
+/// Owner-only changes to the vault itself (policy, agent, pause, strikes, mandate sequence).
 #[derive(Accounts)]
 pub struct OwnerVault<'info> {
     pub owner: Signer<'info>,
@@ -45,7 +47,7 @@ pub struct OwnerVault<'info> {
 pub struct AddPayee<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
-    #[account(has_one = owner @ LeashError::NotOwner)]
+    #[account(mut, has_one = owner @ LeashError::NotOwner)]
     pub vault: Account<'info, Vault>,
     #[account(
         init,
@@ -63,7 +65,7 @@ pub struct UpdatePayee<'info> {
     pub owner: Signer<'info>,
     #[account(has_one = owner @ LeashError::NotOwner)]
     pub vault: Account<'info, Vault>,
-    #[account(mut, has_one = vault)]
+    #[account(mut, has_one = vault @ LeashError::NotOwner)]
     pub payee_account: Account<'info, Payee>,
 }
 
@@ -71,9 +73,9 @@ pub struct UpdatePayee<'info> {
 pub struct RemovePayee<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
-    #[account(has_one = owner @ LeashError::NotOwner)]
+    #[account(mut, has_one = owner @ LeashError::NotOwner)]
     pub vault: Account<'info, Vault>,
-    #[account(mut, has_one = vault, close = owner)]
+    #[account(mut, has_one = vault @ LeashError::NotOwner, close = owner)]
     pub payee_account: Account<'info, Payee>,
 }
 
@@ -95,16 +97,11 @@ pub struct CreateMandate<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(terms: MandateTerms)]
 pub struct RedeemSignedMandate<'info> {
     /// The agent submits (and pays for) the owner's signed mandate.
     #[account(mut)]
     pub agent: Signer<'info>,
-    #[account(
-        mut,
-        constraint = vault.agent == agent.key() @ LeashError::NotAgent,
-        constraint = terms.vault == vault.key() @ LeashError::InvalidMandateSignature,
-    )]
+    #[account(mut, constraint = vault.agent == agent.key() @ LeashError::NotAgent)]
     pub vault: Account<'info, Vault>,
     #[account(
         init,
@@ -114,6 +111,9 @@ pub struct RedeemSignedMandate<'info> {
         bump,
     )]
     pub mandate: Account<'info, Mandate>,
+    /// The vault mint: its decimals turn base units into the UI amounts the owner read.
+    #[account(address = vault.mint @ LeashError::RecipientMismatch)]
+    pub mint: InterfaceAccount<'info, Mint>,
     /// CHECK: the instructions sysvar, pinned by address.
     #[account(address = solana_sdk_ids::sysvar::instructions::ID)]
     pub instructions: UncheckedAccount<'info>,
@@ -125,12 +125,23 @@ pub struct RevokeMandate<'info> {
     pub owner: Signer<'info>,
     #[account(has_one = owner @ LeashError::NotOwner)]
     pub vault: Account<'info, Vault>,
-    #[account(mut, has_one = vault)]
+    #[account(mut, has_one = vault @ LeashError::NotOwner)]
     pub mandate: Account<'info, Mandate>,
 }
 
-/// Shared by `agent_spend` (violations revert) and `guarded_spend` (violations record a strike).
-/// No separate fee payer: an x402 facilitator can pay the fee without appearing in these accounts.
+/// Close a mandate (any state); rent goes to the owner.
+#[derive(Accounts)]
+pub struct CloseMandate<'info> {
+    #[account(mut)]
+    pub owner: Signer<'info>,
+    #[account(mut, has_one = owner @ LeashError::NotOwner)]
+    pub vault: Account<'info, Vault>,
+    #[account(mut, has_one = vault @ LeashError::NotOwner, close = owner)]
+    pub mandate: Account<'info, Mandate>,
+}
+
+/// Shared by `agent_spend` (violations revert, unless the vault enforces the tripwire) and `guarded_spend`
+/// (violations are recorded). No separate fee payer: an x402 facilitator can pay the fee without appearing here.
 #[derive(Accounts)]
 pub struct Spend<'info> {
     pub agent: Signer<'info>,
@@ -145,20 +156,23 @@ pub struct Spend<'info> {
         associated_token::token_program = token_program,
     )]
     pub vault_ata: InterfaceAccount<'info, TokenAccount>,
-    /// CHECK: validated in the handler (token account of `mint`, owned by the authorized payee) so that a bad
-    /// recipient yields a named Leash error, and so guarded_spend can record it instead of reverting.
+    /// CHECK: validated in the handler (must be the authorized payee's ATA for the vault mint) so that a bad
+    /// recipient yields a named Leash error, and so the tripwire can record it instead of reverting.
     #[account(mut)]
     pub recipient_ata: UncheckedAccount<'info>,
+    /// CHECK: loaded in the handler. A closed, foreign or fake Payee account is `PayeeNotAuthorized` (a named error
+    /// the tripwire can record), not an Anchor deserialization error.
     #[account(mut)]
-    pub payee_account: Option<Account<'info, Payee>>,
+    pub payee_account: Option<UncheckedAccount<'info>>,
+    /// CHECK: loaded in the handler, same as `payee_account`.
     #[account(mut)]
-    pub mandate_account: Option<Account<'info, Mandate>>,
+    pub mandate_account: Option<UncheckedAccount<'info>>,
     pub token_program: Interface<'info, TokenInterface>,
 }
 
 #[derive(Accounts)]
 pub struct RequestSpend<'info> {
-    /// The agent pays the request account's rent.
+    /// The agent pays the request account's rent (refunded when the request is resolved or closed).
     #[account(mut)]
     pub agent: Signer<'info>,
     #[account(mut, constraint = vault.agent == agent.key() @ LeashError::NotAgent)]
@@ -171,8 +185,10 @@ pub struct RequestSpend<'info> {
         bump,
     )]
     pub request: Account<'info, SpendRequest>,
-    pub payee_account: Option<Account<'info, Payee>>,
-    pub mandate_account: Option<Account<'info, Mandate>>,
+    /// CHECK: loaded in the handler (invalid → PayeeNotAuthorized).
+    pub payee_account: Option<UncheckedAccount<'info>>,
+    /// CHECK: loaded in the handler (invalid → PayeeNotAuthorized).
+    pub mandate_account: Option<UncheckedAccount<'info>>,
     pub system_program: Program<'info, System>,
 }
 
@@ -181,8 +197,9 @@ pub struct ApproveRequest<'info> {
     pub owner: Signer<'info>,
     #[account(mut, has_one = owner @ LeashError::NotOwner)]
     pub vault: Account<'info, Vault>,
-    #[account(mut, has_one = vault)]
-    pub request: Account<'info, SpendRequest>,
+    /// CHECK: loaded in the handler; an already-resolved (closed) request is `RequestNotPending`.
+    #[account(mut)]
+    pub request: UncheckedAccount<'info>,
     #[account(address = vault.mint @ LeashError::RecipientMismatch)]
     pub mint: InterfaceAccount<'info, Mint>,
     #[account(
@@ -195,20 +212,42 @@ pub struct ApproveRequest<'info> {
     /// CHECK: validated in the handler against request.payee and the vault mint.
     #[account(mut)]
     pub recipient_ata: UncheckedAccount<'info>,
+    /// CHECK: loaded in the handler (invalid → PayeeNotAuthorized).
     #[account(mut)]
-    pub payee_account: Option<Account<'info, Payee>>,
+    pub payee_account: Option<UncheckedAccount<'info>>,
+    /// CHECK: loaded in the handler (invalid → PayeeNotAuthorized).
     #[account(mut)]
-    pub mandate_account: Option<Account<'info, Mandate>>,
+    pub mandate_account: Option<UncheckedAccount<'info>>,
     pub token_program: Interface<'info, TokenInterface>,
+    /// CHECK: receives the request's rent; pinned to the vault's agent.
+    #[account(mut, address = vault.agent @ LeashError::NotAgent)]
+    pub agent: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
 pub struct RejectRequest<'info> {
     pub owner: Signer<'info>,
-    #[account(has_one = owner @ LeashError::NotOwner)]
+    #[account(mut, has_one = owner @ LeashError::NotOwner)]
     pub vault: Account<'info, Vault>,
-    #[account(mut, has_one = vault)]
-    pub request: Account<'info, SpendRequest>,
+    /// CHECK: loaded in the handler; an already-resolved (closed) request is `RequestNotPending`.
+    #[account(mut)]
+    pub request: UncheckedAccount<'info>,
+    /// CHECK: receives the request's rent; pinned to the vault's agent.
+    #[account(mut, address = vault.agent @ LeashError::NotAgent)]
+    pub agent: UncheckedAccount<'info>,
+}
+
+/// Permissionless crank: close an expired request and refund its rent to the agent.
+#[derive(Accounts)]
+pub struct CloseRequest<'info> {
+    #[account(mut)]
+    pub vault: Account<'info, Vault>,
+    /// CHECK: loaded in the handler.
+    #[account(mut)]
+    pub request: UncheckedAccount<'info>,
+    /// CHECK: receives the request's rent; pinned to the vault's agent.
+    #[account(mut, address = vault.agent @ LeashError::NotAgent)]
+    pub agent: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
@@ -232,5 +271,24 @@ pub struct Withdraw<'info> {
         token::token_program = token_program,
     )]
     pub owner_token_account: InterfaceAccount<'info, TokenAccount>,
+    pub token_program: Interface<'info, TokenInterface>,
+}
+
+/// Close an empty vault and its token account; all rent goes to the owner.
+#[derive(Accounts)]
+pub struct CloseVault<'info> {
+    #[account(mut)]
+    pub owner: Signer<'info>,
+    #[account(mut, has_one = owner @ LeashError::NotOwner, close = owner)]
+    pub vault: Account<'info, Vault>,
+    #[account(address = vault.mint @ LeashError::RecipientMismatch)]
+    pub mint: InterfaceAccount<'info, Mint>,
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = vault,
+        associated_token::token_program = token_program,
+    )]
+    pub vault_ata: InterfaceAccount<'info, TokenAccount>,
     pub token_program: Interface<'info, TokenInterface>,
 }

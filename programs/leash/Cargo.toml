@@ -12,6 +12,8 @@ name = "leash"
 
 [features]
 default = []
+# Cluster tag in signed mandates (state::CLUSTER): build the mainnet binary with `--features mainnet`.
+mainnet = []
 cpi = ["no-entrypoint"]
 no-entrypoint = []
 no-log-ix-name = []
@@ -21,11 +23,13 @@ custom-heap = []
 custom-panic = []
 
 [dependencies]
-anchor-lang = "1.2.2"
+anchor-lang = { version = "1.2.2", features = ["init-if-needed"] } # vault ATA may be pre-created (T7)
 anchor-spl = "1.2.2"
 # Anchor 1.x: the old solana_program::sysvar::instructions::load_* path is gone; match anchor-lang's v3 cohort.
 solana-instructions-sysvar = "3"
 solana-sdk-ids = "3.1"
+# sha256 syscall: intent_hash of a signed mandate is computed onchain from the text the owner signed.
+solana-sha256-hasher = "3.1"
 
 [dev-dependencies]
 # Same pins as `anchor init --test-template litesvm` (Anchor 1.2.2).
@@ -37,6 +41,8 @@ solana-keypair = "3"
 # Extra for the harness: write token accounts directly and warp the clock.
 solana-account = "4"
 solana-clock = "3"
+# Expected intent_hash in signed-mandate tests.
+sha2 = "0.10"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

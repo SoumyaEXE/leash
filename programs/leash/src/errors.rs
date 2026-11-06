@@ -26,9 +26,9 @@ pub enum LeashError {
     MandateExhausted,
     #[msg("Amount exceeds the vault's per-transaction cap")]
     ExceedsPerTxCap,
-    #[msg("Amount exceeds the vault's 24h cap")]
+    #[msg("Amount exceeds the vault's rolling 24h cap")]
     ExceedsDailyCap,
-    #[msg("Amount needs owner co-signature; submit a spend request")]
+    #[msg("Amount needs owner co-signature (single payment or 24h autonomous total over the threshold); submit a spend request")]
     RequiresCosign,
     #[msg("Spend request is not pending")]
     RequestNotPending,
@@ -48,6 +48,29 @@ pub enum LeashError {
     InsufficientFunds,
     #[msg("Invalid mandate terms: limits must be positive and expiry in the future")]
     InvalidMandateTerms,
+    // ── appended Nov 7 (path-to-10, T1-T13) ──
+    #[msg("The agent key must be different from the owner key")]
+    AgentIsOwner,
+    #[msg("Unsupported mint: Token-2022 fee, hook, permanent delegate, pausable, default state, non-transferable, close authority or scaled amounts, or more than 18 decimals")]
+    UnsupportedMint,
+    #[msg("Too many open spend requests; the owner must approve or reject one first")]
+    TooManyOpenRequests,
+    #[msg("Spend request has not expired yet")]
+    RequestNotExpired,
+    #[msg("Spend request belongs to another vault")]
+    RequestVaultMismatch,
+    #[msg("Vault still holds tokens; withdraw them first")]
+    VaultNotEmpty,
+    #[msg("Close the vault's payees, mandates and open requests first")]
+    VaultHasOpenAccounts,
+    #[msg("Mandate signature was already used or cancelled (nonce is not the vault's current mandate sequence)")]
+    StaleMandateNonce,
+    #[msg("Mandate intent must be 1-100 printable ASCII characters")]
+    InvalidIntent,
+    #[msg("New mandate sequence must be greater than the current one")]
+    MandateSeqNotIncreasing,
+    #[msg("A vault can't be closed in the same second it was opened")]
+    VaultJustOpened,
 }
 
 impl LeashError {
