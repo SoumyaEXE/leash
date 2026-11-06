@@ -7,19 +7,25 @@
   "bin": { "leash-mcp": "./dist/index.js" },
   "main": "./dist/index.js",
   "scripts": {
-    "build": "tsup src/index.ts --format esm --platform node --target node22 --out-dir dist --clean --noExternal @leash/sdk",
+    "build": "tsup",
     "dev": "tsx src/index.ts",
+    "test:smoke": "tsx test/smoke.ts",
     "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
     "@leash/sdk": "workspace:*",
     "@modelcontextprotocol/server": "2.4.0",
     "@x402/core": "^2.30.0",
+    "@noble/hashes": "^1.8.0",
+    "@solana/spl-token": "^0.4.15",
     "@solana/web3.js": "^1.99.0",
+    "bs58": "^6.0.0",
+    "buffer": "^6.0.3",
     "dotenv": "^17.2.3",
     "zod": "^4.1.0"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "2.4.0",
     "@types/node": "^24.0.0",
     "tsup": "^8.5.0",
     "tsx": "^4.23.15",

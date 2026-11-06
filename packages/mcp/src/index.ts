@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+
 /**
  * @leash/mcp — any MCP agent gets a leashed Solana wallet in one line:
  *   claude mcp add leash -- node packages/mcp/dist/index.js
