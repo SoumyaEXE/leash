@@ -1,11 +1,18 @@
-# @leash/sdk
+# Leash SDK (`@soumyaexe/leash-sdk`)
 
 TypeScript client for the Leash Solana program. Works in Node and the browser (`@solana/web3.js` v1), no IDL
 codegen needed.
 
+Published on npm as @soumyaexe/leash-sdk; inside this monorepo the workspace package is @leash/sdk.
+(`@leash` on npm is an unrelated company's scope: `npm i @leash/sdk` installs *their* package, not this one.)
+
+```bash
+pnpm add @soumyaexe/leash-sdk        # or: npm i @soumyaexe/leash-sdk
+```
+
 ```ts
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
-import { LeashClient, toBaseUnits } from "@leash/sdk";
+import { LeashClient, toBaseUnits } from "@soumyaexe/leash-sdk";
 
 const leash = new LeashClient({
   connection: new Connection("https://api.devnet.solana.com", "confirmed"),
@@ -42,7 +49,7 @@ enforced. The message names the program, cluster, vault (and when it was opened)
 nonce and intent, so it can't be replayed on another cluster, program or re-opened vault.
 
 ```ts
-import { encodeSignedMandate, mandateContextFor, mandateMessageText, signMandate, toBaseUnits } from "@leash/sdk";
+import { encodeSignedMandate, mandateContextFor, mandateMessageText, signMandate, toBaseUnits } from "@soumyaexe/leash-sdk";
 
 // owner, in the browser
 const v = await leash.getVault(vault);

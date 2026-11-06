@@ -184,3 +184,11 @@ Specs live in the planning kit (`../leash-solana-hackathon/docs/`). Anything her
   used as is. The `/demo` transcript label says when more than one call was needed.
 - This checks translation quality, not attack success: a correct decode of this post *is* the attacker's command,
   exactly as in Grok × Bankr.
+
+### Name clash on npm
+- An unrelated "Leash" (leash.build) owns the `@leash` npm scope, so `npm i @leash/sdk` installs *their* package.
+- Our SDK is published as **`@soumyaexe/leash-sdk`** (v0.1.0). Inside this monorepo the workspace package keeps the
+  name `@leash/sdk` (`pnpm --filter @leash/sdk …`, `workspace:*` dependencies), so no code changes.
+- User-facing install commands and import examples use `@soumyaexe/leash-sdk`; `@leash/sdk` appears only where the
+  text means the workspace package. `@leash/mcp`, `@leash/plugin-sak` and `@leash/llm` are workspace names too and
+  can't be published under `@leash`.

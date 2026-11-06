@@ -130,7 +130,7 @@ Two more experiments, both run on the **v1 program** before the upgrade (details
 | Path | What |
 |---|---|
 | `programs/leash` | Anchor 1.2.2 program (v2): 21 instructions, 33 named errors (6000-6032), 15 event types. 78 LiteSVM integration tests + 3 unit tests (happy paths, every named error except `Overflow` and `RequestVaultMismatch`, tripwire, rolling window, Token-2022 mints, Ed25519 bypass attempts) |
-| `packages/sdk` | `@leash/sdk`: PDAs, `spend()` with friendly errors, owner txs for wallets/Blinks, signed mandates, activity stream that includes blocked (failed) txs. 83 tests (IDL conformance, the program's mandate-message vectors, activity forgery, client) |
+| `packages/sdk` | `@leash/sdk` in this monorepo, published on npm as **`@soumyaexe/leash-sdk`** (`pnpm add @soumyaexe/leash-sdk`; the `@leash` npm scope belongs to an unrelated company): PDAs, `spend()` with friendly errors, owner txs for wallets/Blinks, signed mandates, activity stream that includes blocked (failed) txs. 83 tests (IDL conformance, the program's mandate-message vectors, activity forgery, client) |
 | `packages/mcp` | `@leash/mcp`: any MCP agent gets a leashed wallet (`leash_balance`, `leash_pay`, `leash_request`, `leash_pay_for_resource`) |
 | `packages/plugin-sak` | Solana Agent Kit plugin: remove the raw `TRANSFER` action, add Leash |
 | `packages/llm` | You.com Answer/Search API client + the scenario prompts |
