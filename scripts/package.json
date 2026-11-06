@@ -5,8 +5,8 @@
   "scripts": {
     "keys": "tsx keygen.ts",
     "balances": "tsx balances.ts",
-    "setup": "tsx setup-devnet.ts",
-    "reset": "tsx reset-demo.ts"
+    "setup:devnet": "tsx setup-devnet.ts",
+    "reset:demo": "tsx reset-demo.ts"
   },
   "dependencies": {
     "@leash/sdk": "workspace:*",

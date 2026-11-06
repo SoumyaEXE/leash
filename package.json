@@ -12,8 +12,8 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "sdk:sync-idl": "node scripts/sync-idl.mjs",
-    "setup:devnet": "pnpm --filter scripts setup",
-    "reset:demo": "pnpm --filter scripts reset"
+    "setup:devnet": "pnpm --filter scripts run setup:devnet",
+    "reset:demo": "pnpm --filter scripts run reset:demo"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

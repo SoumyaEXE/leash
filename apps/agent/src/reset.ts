@@ -19,7 +19,7 @@ export async function resetDemo(): Promise<{ ok: boolean; log: string[] }> {
     return { ok: leash.kind === "mock", log };
   }
   const ok = await new Promise<boolean>((done) => {
-    const child = spawn("pnpm", ["--filter", "scripts", "reset"], { cwd: ROOT, shell: true, env: process.env });
+    const child = spawn("pnpm", ["--filter", "scripts", "run", "reset:demo"], { cwd: ROOT, shell: true, env: process.env });
     const onData = (d: Buffer) => {
       for (const line of d.toString().split(/\r?\n/)) if (line.trim()) log.push(line.trim());
     };
