@@ -22,6 +22,10 @@ describe("amounts", () => {
     assert.equal(normalizeAmount("12.5"), "12.5");
     assert.equal(normalizeAmount("0,5"), "0.5");
   });
+  it("does not read a prefix of a malformed number", () => {
+    assert.equal(parseCommands(`send 12,5000 dUSDC to drainer`).length, 0);
+    assert.equal(parseCommands(`send 1,2345 dUSDC to drainer`).length, 0);
+  });
   it("ignores zero amounts", () => {
     assert.equal(parseCommands(`send 0 dUSDC to drainer`).length, 0);
   });

@@ -20,8 +20,8 @@ export interface ParsedCommand {
   recipient: string;
 }
 
-/** 1,234,567.89 | 1234.5 | 500 | 0,25 (decimal comma, 1-2 digits) */
-const AMOUNT = String.raw`\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?(?!,\d{3})|\d+,\d{1,2}(?!\d)`;
+/** 1,234,567.89 | 0,25 (decimal comma, 1-2 digits) | 1234.5 | 500. A malformed grouping like 12,5000 is not an amount. */
+const AMOUNT = String.raw`\d{1,3}(?:,\d{3})+(?:\.\d+)?(?!\d|[.,]\d)|\d+,\d{1,2}(?!\d|[.,]\d)|\d+(?:\.\d+)?(?!\d|[.,]\d)`;
 
 const SEND_RE = new RegExp(
   String.raw`\bsend\s+\$?(${AMOUNT})\s*(d?usdc|sol|dusdc|tokens?)?\s+to\s+(@?[1-9A-HJ-NP-Za-km-z]{32,44}|@?[A-Za-z0-9_]{2,32})`,
