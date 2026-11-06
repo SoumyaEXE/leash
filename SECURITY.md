@@ -58,10 +58,10 @@ attacks on the signed-mandate path (`programs/leash/tests/leash.rs`).
    reason. Planned: Blink text treats the reason as untrusted (see off-chain items), readable mandate messages (T5),
    and a Squads multisig with a timelock as the owner.
 3. **Exfiltration through memos.** The agent's reason travels as a plaintext SPL Memo (`leash:reason:<text>`, up to
-   180 chars), and a failed transaction's instructions and logs are public too. A prompt-injected agent can
-   therefore publish data (an API key in its context, a user's address) in the "reason" of a payment that the
-   program then **blocks**: the money stays, the text is public forever. *Mitigation:* keep secrets out of the agent's context. Planned: only the reason
-   hash onchain, text stored off-chain or encrypted to the owner.
+   180 chars), and a failed transaction's instructions and logs are public too. A prompt-injected agent can therefore
+   publish data (an API key in its context, a user's address) in the "reason" of a payment that the program then
+   **blocks**: the money stays, the text is public forever. *Mitigation:* keep secrets out of the agent's context.
+   Planned: only the reason hash onchain, text stored off-chain or encrypted to the owner.
 4. **A stolen owner key.** Full control: change policy, add payees, withdraw. Out of scope for the program. Use a
    hardware wallet; a Squads owner is on the roadmap.
 5. **Prompt injection itself.** The model still gets fooled; Leash stops the payment, not the deception. Anything

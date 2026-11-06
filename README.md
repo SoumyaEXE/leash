@@ -30,7 +30,8 @@ permission to move money.
 Leash moves that decision out of the model and into a Solana program. The agent's key can **request** payments; only
 an **owner-signed authorization** can release them.
 
-- **Owner-signed or it doesn't move.** No allowlist entry, mandate or co-sign from the owner → `PayeeNotAuthorized`.
+- **Owner-signed or it doesn't move.** No owner-signed allowlist entry or mandate for the payee →
+  `PayeeNotAuthorized`. At or above the co-sign threshold, the owner also signs the payment itself.
 - **x402 budgets the API can't talk you out of.** Each paid API is its own payee with a per-payment max and a budget,
   enforced by the program, whatever the 402 asks for.
 - **Every refusal on the record.** Refused payments are sent with `skipPreflight`, so they land onchain as failed
@@ -158,23 +159,24 @@ Public devnet rate-limits hard. Put a dedicated devnet RPC (Helius/Triton free t
 
 - **Devnet hasn't activated sBPFv3.** Anchor 1.2.2 builds sBPFv3 by default; devnet (Agave 4.4.0) still has feature
   `BUwGLeF3…` ("Enable deployment and execution of SBPFv3 programs") inactive, so our first deploy was rejected. We
-  build with `anchor build --arch v0` until SIMD-0500 lands on devnet. Check the cluster's feature set before deploy day.
+  build with `anchor build --arch v0` until SIMD-0500 lands on devnet. Check the cluster's feature set before deploy
+  day.
 - **Pin LiteSVM's dependency graph.** Left alone, cargo resolved Agave 4.4.x crates that LiteSVM 0.15.0 doesn't
   compile against. Starting `Cargo.lock` from Anchor 1.2.2's LiteSVM template lock fixed it; the Ed25519 tests also
   need LiteSVM's `precompiles` feature.
-- **Ed25519 introspection has bypass classes, not one check.** Our verifier pins the precompile's program id,
-  exactly one signature, all three instruction indices = `u16::MAX` (so offsets can't point into another
-  instruction), in-bounds offsets, signer = vault owner, and a byte-exact message; five tests attack the signed-mandate path.
-  What reviewers still found: the signed message is hex (wallets show it blind) and isn't bound to a cluster, so a
-  signature could be replayed on another cluster where the same program id, owner and vault exist. The planned fix
-  is a readable, domain-bound message ([SECURITY.md](SECURITY.md#known-open-items), T5).
+- **Ed25519 introspection has bypass classes, not one check.** Our verifier pins the precompile's program id, exactly
+  one signature, all three instruction indices = `u16::MAX` (so offsets can't point into another instruction),
+  in-bounds offsets, signer = vault owner, and a byte-exact message; five tests attack the signed-mandate path. What
+  reviewers still found: the signed message is hex (wallets show it blind) and isn't bound to a cluster, so a
+  signature could be replayed on another cluster where the same program id, owner and vault exist. The planned fix is
+  a readable, domain-bound message ([SECURITY.md](SECURITY.md#known-open-items), T5).
 - **The You.com Answer API is a Q&A model, not a chat or tool-calling model.** No system prompt, no history, no
   tools; role instructions come back as "The answer could not be found", queries over ~400 characters returned
   HTTP 500, and the same question sometimes fails once and then works. We phrase every prompt as a question, retry
   identical questions, and build the agents the way Bankrbot works: model text → command parser → payment. You.com's
   chat endpoint with tool calling (Inference Router) needs purchased credits, so we didn't use it.
-- **x402 v2 moved everything into headers.** `PAYMENT-REQUIRED` (base64 JSON) on the 402, `PAYMENT-SIGNATURE` on
-  the retry, `PAYMENT-RESPONSE` on success, replacing v1's `X-PAYMENT` / `X-PAYMENT-RESPONSE`. We encode with
+- **x402 v2 changed the wire format.** The 402 carries `PAYMENT-REQUIRED` (base64 JSON), the retry sends
+  `PAYMENT-SIGNATURE`, success returns `PAYMENT-RESPONSE`; v1 used `X-PAYMENT` / `X-PAYMENT-RESPONSE`. We encode with
   `@x402/core/http` instead of hand-rolling, and the server checks each proof against the terms *it* issued for that
   nonce, never the client's echo of them.
 - **A tripwire trades liveness for safety.** Counting every refused attempt as a strike means an honest agent that
