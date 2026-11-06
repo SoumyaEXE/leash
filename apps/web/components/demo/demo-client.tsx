@@ -7,13 +7,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { SCENARIOS, type DemoBalances, type DemoRunResult, type DemoStep, type ScenarioId } from "@leash/sdk/demo";
 import { ENV } from "@/lib/env";
 import { mockBalances, mockRun } from "@/lib/demo-mock";
-import { Aurora } from "../bg/aurora";
-import { NoiseOverlay } from "../bg/noise-overlay";
+import { Badge, Container, Reveal } from "../cx/primitives";
 import { Nav } from "../site/nav";
 import { ResultCard } from "./result-card";
 
 const ORDER: ScenarioId[] = ["s1", "s2", "s5", "s4"];
-const LABEL: Record<ScenarioId, string> = { s1: "Run S1: Morse echo", s2: "Run S2: Fake memory", s5: "Run S5: Hostile 402", s4: "Run S4: Legit work" };
+const LABEL: Record<ScenarioId, string> = { s1: "S1 · Morse echo", s2: "S2 · Fake memory", s5: "S5 · Hostile 402", s4: "S4 · Legit work" };
 
 type PanelState = { run: DemoRunResult | null; visible: number; showPayments: boolean };
 
@@ -52,10 +51,10 @@ function Step({ s }: { s: DemoStep }) {
   }, []);
   const model = s.kind === "model";
   return (
-    <li ref={ref} className="grid grid-cols-[150px_1fr] gap-4 border-b border-white/[0.06] py-2.5 last:border-0">
-      <span className="pt-0.5 font-mono text-[11px] uppercase tracking-[1px] opacity-55">{s.label}</span>
+    <li ref={ref} className="grid grid-cols-[132px_1fr] gap-4 border-b border-white/[0.07] py-3 last:border-0">
+      <span className="pt-0.5 text-[14px] text-white/55">{s.label}</span>
       <span
-        className={`break-words font-mono text-[13px] leading-[22px] ${model ? "rounded-[10px] border border-white/10 bg-white/[0.06] px-3 py-1.5 text-white" : s.kind === "error" ? "text-[#ff8396]" : "text-white/80"}`}
+        className={`break-words text-[15px] leading-6 ${model ? "rounded-[14px] border border-white/10 bg-white/[0.05] px-3.5 py-2 font-mono text-[14px] text-white" : s.kind === "error" ? "text-[#ffb0a6]" : /^[.-/ ]+$/.test(s.text) || /[1-9A-HJ-NP-Za-km-z]{32,}/.test(s.text) ? "font-mono text-[13px] text-white/70" : "text-white/85"}`}
       >
         {s.text}
       </span>
@@ -66,15 +65,15 @@ function Step({ s }: { s: DemoStep }) {
 function Panel({ title, tag, balance, before, state, mock, accent }: { title: string; tag: string; balance: number | null; before: number | null; state: PanelState; mock: boolean; accent: "plain" | "leash" }) {
   const run = state.run;
   return (
-    <section className={`leash-panel flex min-h-0 flex-col overflow-hidden ${accent === "leash" ? "border-[#ea2845]/25" : ""}`}>
-      <div className="flex items-end justify-between gap-6 border-b border-white/[0.06] px-7 pb-5 pt-6">
+    <section className="cx-border cx-card flex min-h-0 flex-col overflow-hidden rounded-[20px]" style={{ ["--cx-angle" as string]: accent === "leash" ? "120deg" : "200deg" }}>
+      <div className="flex items-end justify-between gap-6 border-b border-white/10 px-7 pb-6 pt-6">
         <div>
-          <div className="font-mono text-[12px] font-light uppercase tracking-[1.5px] opacity-70">{tag}</div>
-          <h2 className="mt-1 text-[22px] font-medium">{title}</h2>
+          <div className="text-[14px] text-white/55">{tag}</div>
+          <h2 className="mt-1 text-[24px] tracking-[-0.5px]">{title}</h2>
         </div>
         <div className="text-right">
-          <div className="font-mono text-[11px] uppercase tracking-[1px] opacity-55">{accent === "leash" ? "Vault balance" : "Wallet balance"}</div>
-          <div className="text-[40px] font-medium leading-none">
+          <div className="text-[14px] text-white/55">{accent === "leash" ? "Vault balance" : "Wallet balance"}</div>
+          <div className="mt-1 text-[40px] leading-none tracking-[-1px]">
             {before !== null && run && before !== balance && <span className="mr-3 text-[0.5em] opacity-40 line-through">{before.toLocaleString("en-US")}</span>}
             <Balance value={balance} />
           </div>
@@ -82,7 +81,7 @@ function Panel({ title, tag, balance, before, state, mock, accent }: { title: st
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-4 px-7 py-5">
         {!run ? (
-          <div className="flex flex-1 items-center justify-center font-mono text-[13px] opacity-45">Pick a scenario. Both agents get the exact same input.</div>
+          <div className="flex flex-1 items-center justify-center text-[16px] text-white/45">Pick a scenario. Both agents get the exact same input.</div>
         ) : (
           <>
             <ol className="min-h-0 flex-1 overflow-y-auto">
@@ -95,7 +94,7 @@ function Panel({ title, tag, balance, before, state, mock, accent }: { title: st
                 {run.payments.map((p, i) => (
                   <ResultCard key={`${run.scenario}-${i}-${p.status}`} p={p} mock={mock} />
                 ))}
-                {!run.ok && run.error && <div className="font-mono text-[13px] text-[#ff8396]">{run.error}</div>}
+                {!run.ok && run.error && <div className="text-[15px] text-[#ffb0a6]">{run.error}</div>}
               </div>
             )}
           </>
@@ -233,52 +232,48 @@ export function DemoClient() {
   const vaultBal = balances ? Number(balances.vault.balance) : null;
 
   return (
-    <div className="flex min-h-screen flex-col p-3 sm:p-6 xl:p-8">
-      <div className="relative overflow-hidden rounded-[16px] sm:rounded-[32px]">
-        <div className="absolute inset-0 bg-gradient-to-r from-[#050303] via-[#780f20] to-[#050303]" />
-        <div className="absolute inset-0">
-          <Aurora intensity={0.8} />
-        </div>
-        <NoiseOverlay />
-        <div className="relative z-10 mx-auto max-w-[1760px] px-4 pb-7 pt-5 sm:px-8">
-          <div className="mx-auto max-w-[1216px]">
-            <Nav />
-          </div>
-          <div className="mt-7 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-            <div>
-              <div className="font-mono text-[12px] font-light tracking-[1.2px] opacity-70">{"{ LIVE ON SOLANA DEVNET _"}</div>
-              <h1 className="mt-2 text-4xl font-medium leading-tight lg:text-[52px]">Same model. Same input. One wallet is on a leash.</h1>
-              {active && <p className="mt-2 max-w-3xl font-mono text-[13px] font-light opacity-80">{SCENARIOS[active].incident}</p>}
-            </div>
-            <div className="flex flex-wrap gap-2.5">
+    <div className="flex min-h-screen flex-col">
+      <Nav />
+      <header className="relative overflow-hidden pt-[150px]">
+        <div aria-hidden className="pointer-events-none absolute left-1/2 top-[-440px] h-[760px] w-[1000px] -translate-x-1/2 rounded-full blur-[130px]" style={{ background: "rgb(252 109 1 / 0.36)" }} />
+        <Container className="relative flex flex-col items-center pb-10 text-center">
+          <Reveal>
+            <Badge>Live on Solana devnet</Badge>
+          </Reveal>
+          <Reveal delay={80} as="h1" className="cx-h2 mt-9 max-w-[820px]">
+            Same Model. Same Input.
+            <br /> One Wallet Is on a Leash.
+          </Reveal>
+          <Reveal delay={160} as="p" className="cx-body mt-5 max-w-[640px] text-white/80">
+            {active ? SCENARIOS[active].incident : "Both agents read the same post and get the same model output. Only the wallet is different."}
+          </Reveal>
+          <Reveal delay={220} className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            <div role="tablist" aria-label="Scenario" className="inline-flex flex-wrap justify-center gap-1 rounded-[60px] bg-white/[0.04] p-1.5 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.1)] backdrop-blur-[10px]">
               {ORDER.map((s) => (
                 <button
                   key={s}
                   type="button"
+                  role="tab"
+                  aria-selected={active === s}
                   disabled={!!busy || (offline && !mock)}
                   onClick={() => void runScenario(s)}
-                  className={`h-12 rounded-[16px] px-5 text-[15px] font-bold transition-all duration-200 disabled:opacity-40 ${
-                    active === s ? "bg-white text-black" : "border border-white/20 bg-black/40 hover:border-white/50"
+                  className={`h-11 rounded-[60px] px-5 text-[16px] transition-[background-color,color,box-shadow] duration-200 disabled:opacity-40 ${
+                    active === s ? "bg-[#d32800] text-white shadow-[inset_0_0_0_1px_rgb(255_255_255/0.22),inset_0_1px_0_rgb(255_255_255/0.25)]" : "text-white/75 hover:bg-white/[0.06] hover:text-white"
                   }`}
                 >
                   {busy === s ? "Running…" : LABEL[s]}
                 </button>
               ))}
-              <button
-                type="button"
-                disabled={!!busy || (offline && !mock)}
-                onClick={() => void reset()}
-                className="h-12 rounded-[16px] px-5 text-[15px] font-bold opacity-80 hover:opacity-100 disabled:opacity-40"
-              >
-                {busy === "reset" ? "Resetting…" : "Reset"}
-              </button>
             </div>
-          </div>
-        </div>
-      </div>
-
+            <button type="button" disabled={!!busy || (offline && !mock)} onClick={() => void reset()} className="cx-btn-ghost cx-btn-sm !h-14">
+              {busy === "reset" ? "Resetting…" : "Reset balances"}
+            </button>
+          </Reveal>
+        </Container>
+      </header>
+      <Container className="flex flex-1 flex-col pb-10">
       {offline && !mock && (
-        <div className="mt-4 rounded-[20px] border border-[#f5b544]/40 bg-[#2a1f07]/60 px-6 py-4 font-mono text-[13px] leading-6">
+        <div className="mt-2 rounded-[20px] border border-[#f5a524]/40 bg-[#f5a524]/[0.07] px-6 py-4 text-[15px] leading-6">
           The agent server at {ENV.agentUrl} isn't reachable. Start it with <b>pnpm --filter agent dev</b>, or open{" "}
           <a className="underline" href="/demo?mock=1">
             /demo?mock=1
@@ -286,13 +281,14 @@ export function DemoClient() {
           for canned data.
         </div>
       )}
-      {notice && <div className="mt-4 rounded-[20px] border border-white/15 px-6 py-3 font-mono text-[13px]">{notice}</div>}
-      {mock && <div className="mt-3 text-center font-mono text-[11px] uppercase tracking-[1.5px] opacity-50">mock mode: canned data, not onchain</div>}
+      {notice && <div className="mt-2 rounded-[20px] border border-white/15 px-6 py-3 text-[15px]">{notice}</div>}
+      {mock && <div className="mt-2 text-center text-[13px] text-white/50">Mock mode: canned data, not onchain</div>}
 
       <div className="mt-4 grid min-h-[560px] flex-1 gap-4 lg:grid-cols-2">
         <Panel title="Unprotected agent" tag="Hot wallet · Bankr pattern" balance={victimBal} before={before?.v ?? null} state={victim} mock={mock} accent="plain" />
         <Panel title="Leashed agent" tag="Leash vault · onchain policy" balance={vaultBal} before={before?.l ?? null} state={leashed} mock={mock} accent="leash" />
       </div>
+      </Container>
     </div>
   );
 }

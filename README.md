@@ -152,8 +152,16 @@ incidents. We build on and credit:
 [agent-mandate](https://github.com/a10102010/agent-mandate) · Google's AP2 intent mandates ·
 the RareSkills write-up on Ed25519 instruction introspection · [x402](https://github.com/x402-foundation/x402).
 
-Visual style inspired by [nestjs.com](https://github.com/nestjs/nestjs.com) (MIT): Manrope + Geist Mono, `#ea2845`.
-All UI code is our own.
+### Design credits
+
+- **Layout and visual style** adapted from the free Framer template
+  [Cryonix](https://cryonix.framer.website/) by Pixcut Studio LLC (Framer Marketplace, "Remix for Free"). The
+  decorative illustrations and light flares in `apps/web/public/cx/` come from that template (see
+  `apps/web/public/cx/CREDITS.txt`). The UI code, the phone and dashboard mockups, and all copy are Leash's own.
+- **Logos** in `apps/web/public/logos/` belong to their owners and are used only to name the stack Leash is built on:
+  Solana, Coinbase (x402) and Model Context Protocol from [Simple Icons](https://simpleicons.org) (CC0), Helius from
+  helius.dev, Phantom from its official wallet-adapter icon.
+- **Fonts**: Manrope and Geist Mono via Google Fonts (OFL).
 
 ## AI tools used (MLH disclosure)
 

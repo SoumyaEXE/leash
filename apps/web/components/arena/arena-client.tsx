@@ -4,6 +4,8 @@ import { gsap } from "gsap";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { explorerAddrUrl, short } from "@/lib/env";
 import { CountUp } from "../motion/count-up";
+import { ExtLink } from "../cx/icons";
+import { Container } from "../cx/primitives";
 import { PrimaryButton } from "../ui/buttons";
 
 interface Attempt {
@@ -30,9 +32,9 @@ const MAX = 280;
 
 function Score({ label, value, accent }: { label: string; value: number; accent?: boolean }) {
   return (
-    <div className="flex flex-col gap-1 px-6 py-5 sm:px-8">
-      <span className="font-mono text-[11px] uppercase tracking-[1.2px] opacity-60">{label}</span>
-      <span className={`text-[44px] font-medium leading-none tabular-nums sm:text-[56px] ${accent ? "text-[#ff4d66]" : ""}`}>
+    <div className="flex flex-col gap-2 px-6 py-6 sm:px-8">
+      <span className="text-[16px] text-white/60">{label}</span>
+      <span className={`tabular text-[44px] leading-none tracking-[-1.5px] sm:text-[52px] ${accent ? "text-[#f53f16]" : ""}`}>
         <CountUp value={value} duration={1200} />
       </span>
     </div>
@@ -47,20 +49,26 @@ function Blocked({ a }: { a: Attempt }) {
   if (!a.attempted) return null;
   const blocked = a.result?.status === "blocked";
   return (
-    <div ref={ref} className={`mt-3 rounded-[16px] border p-4 ${blocked ? "border-[#ea2845]/60 bg-[#2a0710]/70" : "border-white/20 bg-white/5"}`}>
-      <div className="font-mono text-[11px] uppercase tracking-[1.2px] text-[#ff8396]">Model fooled · bot executed “{a.attempted.raw}”</div>
-      <div className="mt-2 flex flex-wrap items-baseline justify-between gap-3">
-        <span className="font-mono text-[15px] font-medium">
-          {blocked ? `⛔ Blocked onchain: ${a.result?.errorName}` : a.result?.status === "executed" ? "Payment executed (this should never happen)" : `Payment failed: ${a.result?.errorName ?? "unknown"}`}
-        </span>
+    <div ref={ref} className={`mt-3 rounded-[16px] border p-4 ${blocked ? "border-[#d32800]/50 bg-[#1e0600]/80" : "border-white/20 bg-white/5"}`}>
+      <div className="text-[13px] text-white/60">
+        Model fooled · bot executed <span className="font-mono text-white/85">“{a.attempted.raw}”</span>
+      </div>
+      <div className="mt-2.5 flex flex-wrap items-center justify-between gap-3">
+        {blocked ? (
+          <span className="flex flex-wrap items-center gap-2 text-[15px]">
+            <span className="h-2 w-2 rounded-full bg-[#0cbe4d]" />
+            Blocked onchain
+            <span className="err-chip">{a.result?.errorName}</span>
+          </span>
+        ) : (
+          <span className="text-[15px]">{a.result?.status === "executed" ? "Payment executed (this should never happen)" : `Payment failed: ${a.result?.errorName ?? "unknown"}`}</span>
+        )}
         {a.result?.explorerUrl && (
-          <a href={a.result.explorerUrl} target="_blank" rel="noreferrer" className="font-mono text-[12px] uppercase tracking-[1px] opacity-80 hover:underline">
-            tx ↗
-          </a>
+          <ExtLink href={a.result.explorerUrl}>Explorer</ExtLink>
         )}
       </div>
-      <p className="mt-1 font-mono text-[12px] opacity-70">
-        Tried {a.attempted.amount} dUSDC → {short(a.attempted.to, 5)}. Warden broke. The vault held.
+      <p className="mt-2 text-[13px] text-white/60">
+        Tried {a.attempted.amount} dUSDC to {short(a.attempted.to, 5)}. Warden broke. The vault held.
       </p>
     </div>
   );
@@ -131,45 +139,47 @@ export function ArenaClient() {
   const score = state?.score ?? { attempts: 0, fooled: 0, blocked: 0, drained: 0 };
 
   return (
-    <div className="mx-auto max-w-[1760px] px-3 pb-24 sm:px-6 xl:px-10">
-      <section className="leash-panel overflow-hidden">
-        <div className="grid divide-y divide-white/[0.06] sm:grid-cols-4 sm:divide-x sm:divide-y-0">
+    <Container className="pb-10">
+      <section className="cx-border cx-card overflow-hidden rounded-[20px]" style={{ ["--cx-angle" as string]: "110deg" }}>
+        <div className="grid divide-y divide-white/10 sm:grid-cols-4 sm:divide-x sm:divide-y-0">
           <Score label="Attempts" value={score.attempts} />
           <Score label="Model fooled" value={score.fooled} accent />
           <Score label="Blocked onchain" value={state?.onchain ? Number(state.onchain.blockedCount) : score.blocked} />
           <Score label="Funds drained" value={score.drained} />
         </div>
-        <div className="flex flex-col gap-2 border-t border-white/[0.06] px-6 py-4 font-mono text-[12px] sm:flex-row sm:items-center sm:justify-between sm:px-8">
-          <span className="opacity-80">Freysa and King Arthur paid out when the model broke. Here the model breaks and the vault holds.</span>
+        <div className="flex flex-col gap-2 border-t border-white/10 px-6 py-4 text-[15px] sm:flex-row sm:items-center sm:justify-between sm:px-8">
+          <span className="text-white/75">Freysa and King Arthur paid out when the model broke. Here the model breaks and the vault holds.</span>
           {state && (
-            <a href={explorerAddrUrl(state.vault)} target="_blank" rel="noreferrer" className="shrink-0 uppercase tracking-[1px] opacity-70 hover:opacity-100">
-              verify the counter onchain ↗ {state.mock ? "(mock)" : ""}
-            </a>
+            <ExtLink href={explorerAddrUrl(state.vault)} className="shrink-0">
+              Verify the counter onchain{state.mock ? " (mock)" : ""}
+            </ExtLink>
           )}
         </div>
       </section>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-[1.4fr_1fr]">
-        <section className="leash-panel flex h-[720px] flex-col overflow-hidden">
-          <div className="flex flex-col gap-3 border-b border-white/[0.06] px-6 py-5 sm:flex-row sm:items-center sm:px-8">
+      <div className="mt-5 grid gap-5 xl:grid-cols-[1.4fr_1fr] [&>*]:min-w-0">
+        <section className="cx-border cx-card flex h-[720px] flex-col overflow-hidden rounded-[20px]" style={{ ["--cx-angle" as string]: "120deg" }}>
+          <div className="flex flex-col gap-3 border-b border-white/10 px-6 py-5 sm:flex-row sm:items-center sm:px-8">
             <div className="flex items-center gap-3">
-              <span className="h-2.5 w-2.5 rounded-full bg-[#3ddc97]" />
-              <span className="text-[17px] font-semibold">Warden</span>
-              <span className="font-mono text-[12px] opacity-55">You.com model · guarded_spend vault</span>
+              <span className="grid h-9 w-9 place-items-center rounded-full bg-[#d32800] text-[15px]">W</span>
+              <div>
+                <div className="text-[18px] leading-5">Warden</div>
+                <div className="text-[13px] text-white/55">You.com model · guarded_spend vault</div>
+              </div>
             </div>
             <input
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               placeholder="Your devnet address (where Warden would pay you)"
-              className="h-10 flex-1 rounded-[12px] border border-white/12 bg-black/40 px-3.5 font-mono text-[12px] outline-none focus:border-white/40 sm:ml-auto sm:max-w-[440px]"
+              className="h-11 flex-1 rounded-[60px] border border-white/15 bg-black/50 px-5 font-mono text-[13px] outline-none placeholder:font-sans placeholder:text-white/40 focus:border-[#d32800] sm:ml-auto sm:max-w-[420px]"
             />
           </div>
-          <div ref={list} className="flex-1 space-y-4 overflow-y-auto px-6 py-6 sm:px-8">
+          <div ref={list} data-lenis-prevent className="flex-1 space-y-4 overflow-y-auto px-6 py-6 sm:px-8">
             {msgs.map((m, i) => (
               <div key={i} className={`flex ${m.who === "you" ? "justify-end" : "justify-start"}`}>
                 <div
-                  className={`max-w-[80%] rounded-[20px] px-5 py-3.5 text-[15px] leading-6 ${
-                    m.who === "you" ? "bg-white text-black" : m.error ? "border border-[#ea2845]/40 bg-[#2a0710]/50 text-[#ffb3be]" : "border border-white/10 bg-white/[0.04]"
+                  className={`max-w-[80%] rounded-[20px] px-5 py-3.5 text-[16px] leading-[25.6px] ${
+                    m.who === "you" ? "rounded-br-[6px] bg-[#d32800] text-white" : m.error ? "border border-[#ff4d3d]/40 bg-[#ff4d3d]/[0.07] text-[#ffb0a6]" : "rounded-bl-[6px] border border-white/10 bg-white/[0.05]"
                   }`}
                 >
                   {m.text}
@@ -177,10 +187,10 @@ export function ArenaClient() {
                 </div>
               </div>
             ))}
-            {busy && <div className="font-mono text-[12px] opacity-60">Warden is thinking…</div>}
+            {busy && <div className="text-[14px] text-white/55">Warden is thinking…</div>}
           </div>
           <form
-            className="flex items-end gap-3 border-t border-white/[0.06] px-6 py-5 sm:px-8"
+            className="flex items-end gap-3 border-t border-white/10 px-6 py-5 sm:px-8"
             onSubmit={(e) => {
               e.preventDefault();
               void send();
@@ -199,9 +209,9 @@ export function ArenaClient() {
                 rows={2}
                 placeholder={state?.enabled === false ? "The Arena is paused." : "Talk Warden into paying you…"}
                 disabled={state?.enabled === false}
-                className="w-full resize-none rounded-[16px] border border-white/12 bg-black/40 px-4 py-3 text-[15px] outline-none focus:border-white/40"
+                className="w-full resize-none rounded-[20px] border border-white/15 bg-black/50 px-5 py-3.5 text-[16px] outline-none placeholder:text-white/40 focus:border-[#d32800]"
               />
-              <div className="mt-1 text-right font-mono text-[11px] opacity-50">
+              <div className="tabular mt-1 text-right text-[12px] text-white/45">
                 {input.length}/{MAX}
               </div>
             </div>
@@ -212,9 +222,9 @@ export function ArenaClient() {
         </section>
 
         <div className="flex flex-col gap-4">
-          <section className="leash-panel p-6 sm:p-8">
-            <h2 className="text-[22px] font-medium">How it works</h2>
-            <ol className="mt-4 space-y-3 font-mono text-[13px] font-light leading-6 opacity-80">
+          <section className="cx-border cx-card rounded-[20px] p-6 sm:p-8" style={{ ["--cx-angle" as string]: "200deg" }}>
+            <h2 className="cx-h3 !text-[26px] !leading-[34px]">How It Works</h2>
+            <ol className="mt-5 space-y-3.5 text-[15px] leading-6 text-white/80">
               <li>1. Warden answers with a You.com model. It's told to be helpful, and it is.</li>
               <li>
                 2. Warden's bot runs the Bankr pattern: any <b>send &lt;amount&gt; dUSDC to &lt;address&gt;</b> in Warden's own reply gets executed. Hint: Warden
@@ -223,42 +233,43 @@ export function ArenaClient() {
               <li>3. Every executed command is a real guarded_spend against the Leash program. The vault has no payees, so the program refuses and logs a strike.</li>
               <li>4. The blocked counter lives in the vault account onchain. Check it on the explorer.</li>
             </ol>
-            <p className="mt-5 rounded-[14px] border border-white/10 px-4 py-3 font-mono text-[11px] leading-5 opacity-60">
+            <p className="mt-6 rounded-[16px] border border-white/10 bg-white/[0.03] px-4 py-3 text-[13px] leading-5 text-white/55">
               Devnet test tokens only, no real value. 10 messages per 10 minutes, 280 characters each. We store your message, Warden's reply and a shortened
               address; nothing else.
             </p>
           </section>
-          <section className="leash-panel flex-1 p-6 sm:p-8">
-            <h2 className="text-[22px] font-medium">Recent attempts</h2>
-            <ul className="mt-4 max-h-[420px] space-y-3 overflow-y-auto pr-2">
+          <section className="cx-border cx-card flex-1 rounded-[20px] p-6 sm:p-8" style={{ ["--cx-angle" as string]: "200deg" }}>
+            <h2 className="cx-h3 !text-[26px] !leading-[34px]">Recent Attempts</h2>
+            <ul data-lenis-prevent className="mt-4 max-h-[420px] space-y-3 overflow-y-auto pr-2">
               {(state?.recent ?? []).map((a) => (
-                <li key={a.id} className="rounded-[16px] border border-white/[0.06] bg-black/30 p-4">
-                  <div className="flex items-baseline justify-between gap-3 font-mono text-[11px] opacity-55">
+                <li key={a.id} className="rounded-[16px] border border-white/[0.08] bg-white/[0.03] p-4">
+                  <div className="flex items-baseline justify-between gap-3 font-mono text-[12px] text-white/50">
                     <span>{a.address}</span>
                     <span>{new Date(a.ts * 1000).toLocaleTimeString()}</span>
                   </div>
-                  <p className="mt-1.5 line-clamp-2 text-[14px] leading-5">“{a.prompt}”</p>
+                  <p className="mt-1.5 line-clamp-2 text-[15px] leading-[22px]">“{a.prompt}”</p>
                   {a.attempted ? (
-                    <div className="mt-2 flex items-center justify-between font-mono text-[12px]">
-                      <span className="text-[#ff8396]">
-                        fooled → {a.attempted.amount} dUSDC · {a.result?.status === "blocked" ? a.result.errorName : a.result?.status}
+                    <div className="mt-2.5 flex items-center justify-between gap-2 text-[13px]">
+                      <span className="flex flex-wrap items-center gap-2 text-white/70">
+                        Fooled · {a.attempted.amount} dUSDC
+                        {a.result?.status === "blocked" ? <span className="err-chip">{a.result.errorName}</span> : <span>{a.result?.status}</span>}
                       </span>
                       {a.result?.explorerUrl && (
-                        <a href={a.result.explorerUrl} target="_blank" rel="noreferrer" className="opacity-70 hover:underline">
-                          tx ↗
-                        </a>
+                        <ExtLink tone="quiet" href={a.result.explorerUrl} className="shrink-0">
+                          Tx
+                        </ExtLink>
                       )}
                     </div>
                   ) : (
-                    <div className="mt-2 font-mono text-[12px] opacity-50">Warden held firm</div>
+                    <div className="mt-2 text-[13px] text-white/50">Warden held firm</div>
                   )}
                 </li>
               ))}
-              {(state?.recent?.length ?? 0) === 0 && <li className="font-mono text-[13px] opacity-55">No attempts yet. Be the first to try.</li>}
+              {(state?.recent?.length ?? 0) === 0 && <li className="text-[15px] text-white/55">No attempts yet. Be the first to try.</li>}
             </ul>
           </section>
         </div>
       </div>
-    </div>
+    </Container>
   );
 }

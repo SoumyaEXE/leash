@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ENV, explorerTxUrl } from "@/lib/env";
 import { dialToUrl } from "@/lib/leash";
+import { ExtLink } from "../cx/icons";
 import { OutlineButton, PrimaryButton } from "../ui/buttons";
 
 interface ActionMeta {
@@ -71,29 +72,29 @@ export function ApproveClient() {
   };
 
   if (!request && !vault) {
-    return <p className="font-mono text-sm opacity-70">Open this page from a pending request (needs ?request=&lt;address&gt;).</p>;
+    return <p className="cx-body text-white/70">Open this page from a pending request (needs ?request=&lt;address&gt;).</p>;
   }
 
   return (
     <div className="mx-auto w-full max-w-[560px]">
-      <div className="leash-panel overflow-hidden">
+      <div className="cx-border cx-card overflow-hidden rounded-[24px]" style={{ ["--cx-angle" as string]: "130deg" }}>
         {meta?.icon && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={meta.icon} alt="" className="aspect-square w-full object-cover" />
         )}
         <div className="p-7">
-          <div className="font-mono text-[11px] uppercase tracking-[1.2px] opacity-60">Solana Action · devnet</div>
-          <h1 className="mt-2 text-[26px] font-medium leading-tight">{meta?.title ?? (err ? "Couldn't load this action" : "Loading…")}</h1>
-          {meta?.description && <p className="mt-3 font-mono text-[13px] font-light leading-6 opacity-75">{meta.description}</p>}
-          {meta?.error && <p className="mt-3 font-mono text-[13px] text-[#f5c86a]">{meta.error.message}</p>}
-          {err && <p className="mt-3 font-mono text-[13px] text-[#ff8396]">{err}</p>}
+          <span className="cx-badge cx-border !h-9 !px-4 !text-[14px]">Solana Action · devnet</span>
+          <h1 className="cx-h3 mt-5">{meta?.title ?? (err ? "Couldn't load this action" : "Loading…")}</h1>
+          {meta?.description && <p className="cx-small mt-3">{meta.description}</p>}
+          {meta?.error && <p className="mt-3 text-[15px] text-[#f5c86a]">{meta.error.message}</p>}
+          {err && <p className="mt-3 text-[15px] text-[#ffb0a6]">{err}</p>}
 
           {done ? (
-            <div className="mt-6 rounded-[16px] border border-[#3ddc97]/40 bg-[#07261a]/60 p-4">
-              <div className="font-semibold text-[#7ef0bd]">{done.message ?? "Done."}</div>
-              <a href={explorerTxUrl(done.sig)} target="_blank" rel="noreferrer" className="mt-1 inline-block font-mono text-[12px] underline">
-                View transaction ↗
-              </a>
+            <div className="mt-6 rounded-[16px] border border-[#0cbe4d]/40 bg-[#0cbe4d]/[0.07] p-4">
+              <div className="text-[16px] text-[#8ee8ae]">{done.message ?? "Done."}</div>
+              <ExtLink href={explorerTxUrl(done.sig)} className="mt-3">
+                View transaction
+              </ExtLink>
             </div>
           ) : (
             <div className="mt-6 flex flex-col gap-3">
@@ -116,11 +117,11 @@ export function ApproveClient() {
           )}
         </div>
       </div>
-      <p className="mt-4 text-center font-mono text-[12px] opacity-60">
+      <p className="mt-5 text-center text-[14px] text-white/60">
         Also available as a Blink:{" "}
-        <a className="underline" href={dialToUrl(`${ENV.siteUrl}${base}`)} target="_blank" rel="noreferrer">
-          open on dial.to ↗
-        </a>
+        <ExtLink tone="quiet" href={dialToUrl(`${ENV.siteUrl}${base}`)} className="text-[#ff8a6b]">
+          Open on dial.to
+        </ExtLink>
       </p>
     </div>
   );

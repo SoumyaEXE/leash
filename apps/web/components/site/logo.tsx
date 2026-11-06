@@ -1,21 +1,26 @@
-/** Leash mark: a collar ring with a tag, cut by a check — "held, not stopped". Original artwork. */
-export function LeashMark({ size = 40, className = "" }: { size?: number; className?: string }) {
+/**
+ * Leash mark in the template's logo style: a glossy orange tile with a white glyph.
+ * The glyph is a lead: an "L" stroke that ends in a clip ring.
+ */
+export function LeashMark({ size = 28, className = "" }: { size?: number; className?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 40 40" fill="none" className={className} aria-hidden>
+    <svg width={size} height={size} viewBox="0 0 28 28" className={className} aria-hidden>
       <defs>
-        <linearGradient id="leash-g" x1="4" y1="4" x2="36" y2="36" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#ff4d66" />
-          <stop offset="1" stopColor="#b3122c" />
+        <linearGradient id="lm-fill" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#ff7a1a" />
+          <stop offset="0.55" stopColor="#f5450f" />
+          <stop offset="1" stopColor="#d32800" />
+        </linearGradient>
+        <linearGradient id="lm-gloss" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#fff" stopOpacity="0.35" />
+          <stop offset="0.5" stopColor="#fff" stopOpacity="0" />
         </linearGradient>
       </defs>
-      <path
-        d="M20 4.5c8.56 0 15.5 6.94 15.5 15.5S28.56 35.5 20 35.5 4.5 28.56 4.5 20c0-4.1 1.6-7.84 4.2-10.62"
-        stroke="url(#leash-g)"
-        strokeWidth="4.5"
-        strokeLinecap="round"
-      />
-      <circle cx="11.2" cy="7.6" r="3.4" fill="url(#leash-g)" />
-      <path d="M13.6 20.4l4.3 4.3 8.6-9.4" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" />
+      <rect width="28" height="28" rx="7.5" fill="url(#lm-fill)" />
+      <rect width="28" height="28" rx="7.5" fill="url(#lm-gloss)" />
+      <rect x="0.5" y="0.5" width="27" height="27" rx="7" fill="none" stroke="#fff" strokeOpacity="0.28" />
+      <path d="M10 6.5v11.2a2.3 2.3 0 0 0 2.3 2.3h3.2" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="19.2" cy="20" r="2.6" fill="none" stroke="#fff" strokeWidth="2.2" />
     </svg>
   );
 }
@@ -23,8 +28,8 @@ export function LeashMark({ size = 40, className = "" }: { size?: number; classN
 export function LeashWordmark({ className = "" }: { className?: string }) {
   return (
     <span className={`inline-flex items-center gap-2.5 ${className}`}>
-      <LeashMark size={36} />
-      <span className="text-[22px] font-semibold tracking-[-0.02em]">Leash</span>
+      <LeashMark size={28} />
+      <span className="text-[25px] font-medium leading-none tracking-[-0.8px]">Leash</span>
     </span>
   );
 }

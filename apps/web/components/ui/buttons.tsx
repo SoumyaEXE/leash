@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, type ButtonHTMLAttributes, type MouseEvent, type ReactNode } from "react";
+import { type ButtonHTMLAttributes, type ReactNode } from "react";
+import { Arrow } from "../cx/primitives";
 
 type Common = {
   children: ReactNode;
@@ -9,130 +10,73 @@ type Common = {
   external?: boolean;
   className?: string;
   size?: "lg" | "md" | "sm";
+  arrow?: boolean;
 };
-
-const SIZES = {
-  lg: "h-16 px-5 text-base rounded-[20px]",
-  md: "h-12 px-5 text-[15px] rounded-[16px]",
-  sm: "h-9 px-3.5 text-[13px] rounded-[12px]",
-} as const;
-
-/** Glow blob that follows the pointer (80px #ea2845, blur 16px, fades in 0.3s). */
-function useGlow() {
-  const ref = useRef<HTMLSpanElement>(null);
-  const [on, setOn] = useState(false);
-  const move = (e: MouseEvent<HTMLElement>) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    if (ref.current) ref.current.style.transform = `translate(${e.clientX - r.left - 40}px, ${e.clientY - r.top - 40}px)`;
-  };
-  return { ref, on, setOn, move };
-}
 
 function Shell({
   children,
   href,
   external,
   className,
-  onMouseMove,
-  onMouseEnter,
-  onMouseLeave,
   buttonProps,
 }: {
   children: ReactNode;
   href?: string;
   external?: boolean;
   className: string;
-  onMouseMove: (e: MouseEvent<HTMLElement>) => void;
-  onMouseEnter: () => void;
-  onMouseLeave: () => void;
   buttonProps?: ButtonHTMLAttributes<HTMLButtonElement>;
 }) {
-  const handlers = { onMouseMove, onMouseEnter, onMouseLeave };
   if (href) {
     if (external)
       return (
-        <a href={href} target="_blank" rel="noreferrer" className={className} {...handlers}>
+        <a href={href} target="_blank" rel="noreferrer" className={className}>
           {children}
         </a>
       );
     return (
-      <Link href={href} className={className} {...handlers}>
+      <Link href={href} className={className}>
         {children}
       </Link>
     );
   }
   return (
-    <button type="button" className={className} {...handlers} {...buttonProps}>
+    <button type="button" className={className} {...buttonProps}>
       {children}
     </button>
   );
 }
 
-export function PrimaryButton({
-  children,
-  href,
-  external,
-  className = "",
-  size = "lg",
-  ...rest
-}: Common & ButtonHTMLAttributes<HTMLButtonElement>) {
-  const g = useGlow();
+const PRIMARY_SIZES = { lg: "", md: "cx-btn-sm", sm: "cx-btn-sm !h-9 !px-4 !text-[14px]" } as const;
+
+/** Brand pill: #D32800 with the inner glow. */
+export function PrimaryButton({ children, href, external, className = "", size = "lg", arrow = false, ...rest }: Common & ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
-    <Shell
-      href={href}
-      external={external}
-      onMouseMove={g.move}
-      onMouseEnter={() => g.setOn(true)}
-      onMouseLeave={() => g.setOn(false)}
-      buttonProps={rest}
-      className={`group relative inline-flex items-center justify-center overflow-hidden bg-white font-bold text-black
-        transition-transform duration-100 ease-[cubic-bezier(0.4,0,0.2,1)] active:scale-[0.97]
-        disabled:opacity-50 disabled:pointer-events-none ${SIZES[size]} ${className}`}
-    >
-      <span
-        ref={g.ref}
-        aria-hidden
-        className="pointer-events-none absolute left-0 top-0 h-20 w-20 rounded-full bg-[#ea2845] blur-[16px] transition-opacity duration-300"
-        style={{ opacity: g.on ? 0.55 : 0 }}
-      />
-      <span className="relative z-10 inline-flex items-center gap-2">{children}</span>
+    <Shell href={href} external={external} buttonProps={rest} className={`cx-btn group ${PRIMARY_SIZES[size]} disabled:pointer-events-none disabled:opacity-40 ${className}`}>
+      {children}
+      {arrow && <Arrow />}
     </Shell>
   );
 }
 
-export function GhostButton({
-  children,
-  href,
-  external,
-  className = "",
-  size = "lg",
-  ...rest
-}: Common & ButtonHTMLAttributes<HTMLButtonElement>) {
-  const g = useGlow();
+const GHOST_SIZES = { lg: "h-[59px] px-8 text-[18px]", md: "h-11 px-[22px] text-[16px]", sm: "h-9 px-4 text-[14px]" } as const;
+const GHOST_CX = { lg: "", md: "cx-btn-sm", sm: "cx-btn-sm !h-9 !px-4 !text-[14px]" } as const;
+
+/** Secondary pill: glass fill with a hairline that turns brand on hover. */
+export function GhostButton({ children, href, external, className = "", size = "lg", arrow = false, ...rest }: Common & ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <Shell
       href={href}
       external={external}
-      onMouseMove={g.move}
-      onMouseEnter={() => g.setOn(true)}
-      onMouseLeave={() => g.setOn(false)}
       buttonProps={rest}
-      className={`group relative inline-flex items-center justify-center overflow-hidden font-bold text-white
-        transition-transform duration-100 active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none
-        ${SIZES[size]} ${className}`}
+      className={`cx-btn-ghost group ${GHOST_CX[size]} ${className}`}
     >
-      <span
-        ref={g.ref}
-        aria-hidden
-        className="pointer-events-none absolute left-0 top-0 h-20 w-20 scale-50 rounded-full bg-[#ea2845] blur-[16px] transition-opacity duration-300"
-        style={{ opacity: g.on ? 0.6 : 0 }}
-      />
-      <span className="relative z-10 inline-flex items-center gap-2">{children}</span>
+      {children}
+      {arrow && <Arrow />}
     </Shell>
   );
 }
 
-/** Bordered outline button used in dashboards. */
+/** Dashboard action pill with an optional semantic tone. */
 export function OutlineButton({
   children,
   className = "",
@@ -141,15 +85,14 @@ export function OutlineButton({
   ...rest
 }: Common & ButtonHTMLAttributes<HTMLButtonElement> & { tone?: "default" | "danger" | "ok" }) {
   const tones = {
-    default: "border-white/15 hover:border-white/35 hover:bg-white/5",
-    danger: "border-[#ea2845]/50 text-[#ff6b80] hover:bg-[#ea2845]/10 hover:border-[#ea2845]",
-    ok: "border-[#3ddc97]/40 text-[#7ef0bd] hover:bg-[#3ddc97]/10 hover:border-[#3ddc97]",
+    default: "border-white/15 bg-white/[0.04] text-white hover:border-[#f53f16]/60 hover:bg-white/[0.07]",
+    danger: "border-[#ff4d3d]/45 bg-[#ff4d3d]/[0.06] text-[#ffb0a6] hover:bg-[#ff4d3d]/15",
+    ok: "border-[#0cbe4d]/45 bg-[#0cbe4d]/[0.06] text-[#8ee8ae] hover:bg-[#0cbe4d]/12",
   } as const;
   return (
     <button
       type="button"
-      className={`inline-flex items-center justify-center gap-2 border font-semibold transition-colors duration-200
-        disabled:opacity-40 disabled:pointer-events-none ${SIZES[size]} ${tones[tone]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[60px] border transition-[background-color,border-color,transform] duration-150 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40 ${GHOST_SIZES[size]} ${tones[tone]} ${className}`}
       {...rest}
     >
       {children}
