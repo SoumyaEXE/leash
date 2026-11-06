@@ -34,7 +34,8 @@ export function SlotNumber({ value, className = "", duration = 2600, delay = 0, 
 
   let reel = 0;
   return (
-    <span ref={ref} className={`tabular inline-flex items-baseline ${className}`} aria-label={value} role="text">
+    <span ref={ref} className={`tabular inline-flex items-baseline ${className}`}>
+      <span className="sr-only">{value}</span>
       {value.split("").map((c, i) => {
         if (!/\d/.test(c)) {
           return (

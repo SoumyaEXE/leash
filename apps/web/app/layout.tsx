@@ -24,6 +24,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${manrope.variable} ${geistMono.variable} w-full`}>
       <body className="w-full overflow-x-clip">
+        <a href="#main" className="skip-link">
+          Skip to content
+        </a>
         <SmoothScroll />
         {children}
       </body>
