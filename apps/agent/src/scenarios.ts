@@ -57,7 +57,15 @@ function describePayment(p: DemoPayment): string {
 }
 
 function modelStep(rec: Recorder, call: ModelCall): void {
-  const note = call.provider === "offline-fallback" ? " (offline fallback decoder: You.com unreachable)" : call.cached ? " (same input, same output)" : "";
+  const retried = call.attempts && call.attempts > 1 ? `, asked ${call.attempts}× because a decode had typos` : "";
+  const note =
+    call.provider === "offline-fallback"
+      ? " (offline fallback decoder: You.com unreachable)"
+      : call.cached
+        ? ` (same input, same output${retried})`
+        : retried
+          ? ` (${retried.slice(2)})`
+          : "";
   rec.step("model", `Model output · You.com${note}`, call.output);
 }
 
