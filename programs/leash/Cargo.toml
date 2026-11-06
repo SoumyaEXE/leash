@@ -35,7 +35,7 @@ solana-transaction = "4"
 solana-signer = "3"
 solana-keypair = "3"
 # Extra for the harness: write token accounts directly and warp the clock.
-solana-account = "3"
+solana-account = "4"
 solana-clock = "3"
 
 [lints.rust]
