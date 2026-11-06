@@ -121,6 +121,19 @@ export class MockLeashClient implements ILeashClient {
         vaultAta: seeded(`ata:${key}`),
         balance: isArena ? 10_000n * DUSDC : 1_000n * DUSDC,
         decimals: 6,
+        // fields added with the rolling-window program (@leash/sdk VaultState)
+        createdAt: t - 86_400,
+        spent24h: 350_000n,
+        autonomous24h: 350_000n,
+        cosignWindowThreshold: 0n,
+        strikeWindowStart: 0,
+        enforceTripwire: false,
+        openRequests: 1,
+        openPayees: 2,
+        openMandates: 1,
+        lastBucket: Math.floor(t / 3600),
+        spentBuckets: [],
+        autoBuckets: [],
       },
       payees: [
         {
@@ -270,7 +283,7 @@ export class MockLeashClient implements ILeashClient {
         if (approved) {
           w.vault.balance -= r.amount;
           w.vault.totalSpent += r.amount;
-          w.vault.spentInWindow += r.amount;
+          w.vault.spent24h = w.vault.spentInWindow += r.amount;
           const p = w.payees.find((x) => x.payee.equals(r.payee));
           if (p) p.spent += r.amount;
         }
@@ -419,7 +432,7 @@ export class MockLeashClient implements ILeashClient {
     }
     w.vault.balance -= args.amount;
     w.vault.totalSpent += args.amount;
-    w.vault.spentInWindow += args.amount;
+    w.vault.spent24h = w.vault.spentInWindow += args.amount;
     const p = w.payees.find((x) => x.payee.equals(args.payee));
     if (p) p.spent += args.amount;
     this.emit(args.vault, { kind: "spent", sig, ts: t, amount: args.amount, payee: args.payee.toBase58(), via: res.via, reason: args.reason });

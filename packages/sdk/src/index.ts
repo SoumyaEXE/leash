@@ -1,7 +1,42 @@
 export * from "./errors";
 export * from "./types";
 export * from "./utils";
-export { LeashClient, buildMandateMessage, type LeashClientOptions, type WalletLike } from "./client";
+export {
+  LeashClient,
+  mandateContextFor,
+  policyOf,
+  type LeashClientOptions,
+  type RedeemMandateResult,
+  type WalletLike,
+} from "./client";
+export {
+  MANDATE_HEADER,
+  MAX_EXPIRES_AT,
+  MAX_INTENT_LEN,
+  buildMandateMessage,
+  decodeSignedMandate,
+  encodeSignedMandate,
+  mandateIntentError,
+  mandateIsoTime,
+  mandateMessageText,
+  mandateTermsError,
+  mandateUiAmount,
+  signMandate,
+  signedMandateToJson,
+  type LeashCluster,
+  type MandateMessageContext,
+  type MessageSigner,
+  type SignedMandate,
+  type SignedMandateJson,
+} from "./mandate";
+export {
+  activityFromTransaction,
+  leashFailure,
+  topLevelInstructions,
+  type ActivityTx,
+  type LeashFailure,
+  type TopLevelInstruction,
+} from "./activity";
 export {
   parseLeashEvents,
   decodeEvent,
@@ -11,9 +46,20 @@ export {
   decodeRequest,
   encodeMandateTerms,
   discriminator,
+  instructionName,
+  isLegacyVaultAccount,
+  rollingSum,
+  BUCKETS,
+  BUCKET_SECS,
   EVENT_NAMES,
+  IX_NAMES,
+  LEGACY_VAULT_ACCOUNT_SIZE,
+  MAX_OPEN_REQUESTS,
+  VAULT_ACCOUNT_SIZE,
   type LeashEvent,
   type LeashEventName,
+  type LeashIxName,
   type MandateTermsArgs,
+  type RawVault,
 } from "./layout";
 export * as ix from "./instructions";

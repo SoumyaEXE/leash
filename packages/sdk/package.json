@@ -10,12 +10,12 @@
     ".": "./src/index.ts",
     "./errors": "./src/errors.ts",
     "./demo": "./src/demo.ts",
-    "./idl/leash.json": "./src/idl/leash.json"
+    "./idl/leash.json": "./src/idl/leash.json",
+    "./mandate": "./src/mandate.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p .",
-    "test": "tsx test/layout.test.ts",
-    "test:devnet": "tsx test/devnet.test.ts"
+    "test": "tsx --test \"test/*.test.ts\""
   },
   "dependencies": {
     "@anchor-lang/core": "1.2.2",

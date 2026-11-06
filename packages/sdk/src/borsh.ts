@@ -51,6 +51,9 @@ export class Writer {
     this.u8(1);
     return this.fixed(bytes, len);
   }
+  optionPubkey(pk: PublicKey | null | undefined): this {
+    return pk ? this.u8(1).pubkey(pk) : this.u8(0);
+  }
   raw(bytes: Uint8Array): this {
     for (const b of bytes) this.chunks.push(b);
     return this;
@@ -67,6 +70,10 @@ export class Reader {
 
   get offset(): number {
     return this.o;
+  }
+  /** Bytes left to read (fields appended to an event in a later program version are absent in older logs). */
+  get remaining(): number {
+    return this.buf.length - this.o;
   }
   skip(n: number): this {
     this.o += n;
@@ -120,5 +127,8 @@ export class Reader {
   }
   optionFixed(len: number): Uint8Array | null {
     return this.u8() === 0 ? null : this.fixed(len);
+  }
+  optionPubkey(): PublicKey | null {
+    return this.u8() === 0 ? null : this.pubkey();
   }
 }

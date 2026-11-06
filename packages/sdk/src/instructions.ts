@@ -63,7 +63,7 @@ export function addPayeeIx(
 ): TransactionInstruction {
   return ix(
     programId,
-    [w(a.owner, true), r(a.vault), w(a.payeeAccount), r(SystemProgram.programId)],
+    [w(a.owner, true), w(a.vault), w(a.payeeAccount), r(SystemProgram.programId)],
     ixData(IX.addPayee, (wr) => wr.pubkey(args.payee).string(args.label).u64(args.perTxMax).u64(args.budgetTotal)),
   );
 }
@@ -84,7 +84,7 @@ export function removePayeeIx(
   programId: PublicKey,
   a: { owner: PublicKey; vault: PublicKey; payeeAccount: PublicKey },
 ): TransactionInstruction {
-  return ix(programId, [w(a.owner, true), r(a.vault), w(a.payeeAccount)], ixData(IX.removePayee));
+  return ix(programId, [w(a.owner, true), w(a.vault), w(a.payeeAccount)], ixData(IX.removePayee));
 }
 
 export function createMandateIx(
@@ -101,16 +101,32 @@ export function createMandateIx(
   );
 }
 
+/**
+ * Must be sent right after the Ed25519 precompile ix that verifies the owner's signature over
+ * `buildMandateMessage(...)` (all instruction indices u16::MAX). `mandate` = mandatePda(vault, vault.mandateSeq),
+ * `mint` = vault.mint (its decimals format the UI amounts in the message).
+ */
 export function redeemSignedMandateIx(
   programId: PublicKey,
-  a: { agent: PublicKey; vault: PublicKey; mandate: PublicKey },
+  a: { agent: PublicKey; vault: PublicKey; mandate: PublicKey; mint: PublicKey },
   terms: MandateTermsArgs,
 ): TransactionInstruction {
   return ix(
     programId,
-    [w(a.agent, true), w(a.vault), w(a.mandate), r(SYSVAR_INSTRUCTIONS_PUBKEY), r(SystemProgram.programId)],
+    [w(a.agent, true), w(a.vault), w(a.mandate), r(a.mint), r(SYSVAR_INSTRUCTIONS_PUBKEY), r(SystemProgram.programId)],
     ixData(IX.redeemSignedMandate, (wr) => wr.raw(encodeMandateTerms(terms))),
   );
+}
+
+/** Cancel every unredeemed signed mandate: their nonces (< newSeq) can never match vault.mandate_seq again. */
+export const bumpMandateSeqIx = (programId: PublicKey, owner: PublicKey, vault: PublicKey, newSeq: bigint) =>
+  ownerVaultIx(programId, owner, vault, ixData(IX.bumpMandateSeq, (wr) => wr.u64(newSeq)));
+
+export function closeMandateIx(
+  programId: PublicKey,
+  a: { owner: PublicKey; vault: PublicKey; mandate: PublicKey },
+): TransactionInstruction {
+  return ix(programId, [w(a.owner, true), w(a.vault), w(a.mandate)], ixData(IX.closeMandate));
 }
 
 export function revokeMandateIx(
@@ -177,6 +193,7 @@ export function requestSpendIx(
   );
 }
 
+/** The owner's co-sign. `agent` = vault.agent: the closed request's rent goes back to it. */
 export function approveRequestIx(
   programId: PublicKey,
   a: {
@@ -189,6 +206,7 @@ export function approveRequestIx(
     payeeAccount?: PublicKey | null;
     mandateAccount?: PublicKey | null;
     tokenProgram: PublicKey;
+    agent: PublicKey;
   },
 ): TransactionInstruction {
   return ix(
@@ -203,16 +221,26 @@ export function approveRequestIx(
       opt(programId, a.payeeAccount, true),
       opt(programId, a.mandateAccount, true),
       r(a.tokenProgram),
+      w(a.agent),
     ],
     ixData(IX.approveRequest),
   );
 }
 
+/** `agent` = vault.agent: the closed request's rent goes back to it. */
 export function rejectRequestIx(
   programId: PublicKey,
-  a: { owner: PublicKey; vault: PublicKey; request: PublicKey },
+  a: { owner: PublicKey; vault: PublicKey; request: PublicKey; agent: PublicKey },
 ): TransactionInstruction {
-  return ix(programId, [r(a.owner, true), r(a.vault), w(a.request)], ixData(IX.rejectRequest));
+  return ix(programId, [r(a.owner, true), w(a.vault), w(a.request), w(a.agent)], ixData(IX.rejectRequest));
+}
+
+/** Permissionless once the request expired (any fee payer). `agent` = vault.agent receives the rent. */
+export function closeRequestIx(
+  programId: PublicKey,
+  a: { vault: PublicKey; request: PublicKey; agent: PublicKey },
+): TransactionInstruction {
+  return ix(programId, [w(a.vault), w(a.request), w(a.agent)], ixData(IX.closeRequest));
 }
 
 export function withdrawIx(
@@ -224,5 +252,17 @@ export function withdrawIx(
     programId,
     [r(a.owner, true), r(a.vault), r(a.mint), w(a.vaultAta), w(a.ownerTokenAccount), r(a.tokenProgram)],
     ixData(IX.withdraw, (wr) => wr.u64(amount)),
+  );
+}
+
+/** Close an empty vault (balance 0, no payees / mandates / open requests); the vault ATA closes too. */
+export function closeVaultIx(
+  programId: PublicKey,
+  a: { owner: PublicKey; vault: PublicKey; mint: PublicKey; vaultAta: PublicKey; tokenProgram: PublicKey },
+): TransactionInstruction {
+  return ix(
+    programId,
+    [w(a.owner, true), w(a.vault), r(a.mint), w(a.vaultAta), r(a.tokenProgram)],
+    ixData(IX.closeVault),
   );
 }

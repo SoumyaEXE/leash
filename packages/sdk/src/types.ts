@@ -14,8 +14,19 @@ export interface Policy {
   cosignThreshold: bigint;
   /** pending spend requests expire after this many seconds */
   requestTtlSecs: number;
-  /** guarded_spend tripwire: auto-pause after this many blocked attempts. 0 = never. */
+  /** tripwire: auto-pause after this many strikes (unauthorized attempts) within 24h. 0 = never. */
   freezeAfterStrikes: number;
+  /**
+   * Once the agent's un-co-signed spending over the rolling 24h would reach this, every further payment needs an
+   * owner co-sign (stops 5 x 0.19 under a 0.20 per-payment threshold). 0n = disabled.
+   */
+  cosignWindowThreshold: bigint;
+  /**
+   * When true, agent_spend behaves like guarded_spend (refusals are recorded, unauthorized ones strike), so a
+   * stolen agent key can't dodge the tripwire by picking the strict path. Required on purpose: an update_policy
+   * built without it would silently switch the tripwire off.
+   */
+  enforceTripwire: boolean;
 }
 
 export interface VaultState {
@@ -24,21 +35,46 @@ export interface VaultState {
   agent: PublicKey;
   mint: PublicKey;
   vaultId: bigint;
+  /** unix seconds the vault was initialized (part of every signed-mandate message) */
+  createdAt: number;
   paused: boolean;
   perTxCap: bigint;
   dailyCap: bigint;
+  /** what left the vault in the rolling 24h at fetch time (counts against dailyCap) */
+  spent24h: bigint;
+  /** payments the agent made without a co-sign in the rolling 24h at fetch time (counts against cosignWindowThreshold) */
+  autonomous24h: bigint;
+  /**
+   * @deprecated The program has no fixed window any more (rolling 24h of hourly buckets). This is the fetch time,
+   * so old `now - windowStart >= 86400 ? 0n : spentInWindow` code keeps reading `spentInWindow`. Use `spent24h`.
+   */
   windowStart: number;
+  /** @deprecated Same as `spent24h`. */
   spentInWindow: bigint;
   cosignThreshold: bigint;
+  cosignWindowThreshold: bigint;
   requestTtlSecs: number;
   requestSeq: bigint;
+  /** nonce the next signed mandate must carry; also the id of the next mandate */
   mandateSeq: bigint;
   totalSpent: bigint;
-  /** guarded_spend counters, readable by anyone: the Arena's "verify it yourself" numbers */
+  /** tripwire counters, readable by anyone: the Arena's "verify it yourself" numbers */
   blockedCount: bigint;
+  /** strikes (unauthorized attempts) in the current 24h strike window */
   strikes: number;
   freezeAfterStrikes: number;
   lastBlockedAt: number;
+  /** start of the current strike window, unix seconds (0 = none) */
+  strikeWindowStart: number;
+  enforceTripwire: boolean;
+  /** open (unresolved) spend requests; the program allows at most 8 */
+  openRequests: number;
+  openPayees: number;
+  openMandates: number;
+  /** hourly rings behind spent24h / autonomous24h: slot = hour % 25, newest hour = lastBucket (unix_ts / 3600) */
+  lastBucket: number;
+  spentBuckets: bigint[];
+  autoBuckets: bigint[];
   /** vault token account (ATA of mint owned by the vault PDA) and its balance */
   vaultAta: PublicKey;
   balance: bigint;
@@ -82,6 +118,12 @@ export interface RequestState {
   status: RequestStatus;
   /** x402 payment nonce, emitted in SpendExecuted when the owner approves */
   memo?: Uint8Array | null;
+  /**
+   * true when the account no longer exists: the program closes a request on approve / reject / close_request, and
+   * the status was read back from its transaction history. `seq` is then -1n if it couldn't be recovered, and
+   * `expiresAt` is estimated from the vault's current request TTL.
+   */
+  closed?: boolean;
 }
 
 export interface SpendArgs {
@@ -95,9 +137,16 @@ export interface SpendArgs {
   memo?: Uint8Array;
   /** force a specific mandate; otherwise payee PDA first, then active mandates for that payee */
   mandate?: PublicKey;
-  /** send with skipPreflight so a rejected payment still lands onchain with an explorer link */
+  /**
+   * Send with skipPreflight so a rejected payment still lands onchain with an explorer link (demo txs that are
+   * expected to fail). Everything else keeps preflight on, guarded mode included: a guarded refusal succeeds in
+   * simulation (it records PaymentBlocked instead of reverting), so it lands anyway.
+   */
   expectFailure?: boolean;
-  /** strict = agent_spend (violations revert). guarded = guarded_spend (violations record a strike, emit PaymentBlocked). */
+  /**
+   * strict = agent_spend (violations revert, unless the vault has enforceTripwire). guarded = guarded_spend
+   * (violations are recorded as PaymentBlocked; unauthorized ones are strikes).
+   */
   mode?: "strict" | "guarded";
 }
 
@@ -117,9 +166,11 @@ export type SpendResult =
       code?: number;
       message: string;
       friendly: FriendlyError;
-      /** present when the refused tx landed onchain (expectFailure or guarded mode) */
+      /** present when the refused tx landed onchain (expectFailure, or a guarded refusal) */
       sig?: string;
       explorerUrl?: string;
+      /** guarded refusals: true if it counted as a tripwire strike (unauthorized payee / redirected recipient) */
+      strike?: boolean;
     };
 
 export type RequestSpendResult =
@@ -142,7 +193,11 @@ export type ActivityKind =
   | "policy"
   | "mandate"
   | "paused"
-  | "frozen";
+  | "frozen"
+  /** owner withdrew funds */
+  | "withdrawn"
+  /** an expired request, a mandate or the vault was closed (rent refunded) */
+  | "closed";
 
 export interface ActivityEvent {
   kind: ActivityKind;
@@ -154,12 +209,19 @@ export interface ActivityEvent {
   payee?: string;
   /** set for blocked events */
   errorName?: string;
+  /** blocked events recorded by the tripwire: true if it counted as a strike */
+  strike?: boolean;
+  /** blocked events from a failed tx: the Leash instruction that was refused, e.g. "agent_spend" */
+  instruction?: string;
   /** hex sha256 of the agent's reason */
   reasonHash?: string;
   /** reason text recovered from the SPL Memo in the same tx, if present */
   reason?: string;
   via?: AuthKind;
+  /** spend request address (requested / resolved / closed, and spent when the payment settled a request) */
   request?: string;
+  /** mandate address (mandate / closed events) */
+  mandate?: string;
   approved?: boolean;
   paused?: boolean;
 }
@@ -200,7 +262,15 @@ export type OwnerAction =
       intent: string;
     }
   | { type: "revokeMandate"; vault: PublicKey; mandate: PublicKey }
-  | { type: "withdraw"; vault: PublicKey; amount: bigint };
+  | { type: "withdraw"; vault: PublicKey; amount: bigint }
+  /** Cancel every unredeemed signed mandate (moves vault.mandateSeq to `newSeq`, default mandateSeq + 1). */
+  | { type: "bumpMandateSeq"; vault: PublicKey; newSeq?: bigint }
+  /** Close a mandate (any state); rent goes back to the owner. */
+  | { type: "closeMandate"; vault: PublicKey; mandate: PublicKey }
+  /** Close an expired spend request (anyone may; rent goes back to the agent). */
+  | { type: "closeRequest"; vault: PublicKey; request: PublicKey }
+  /** Close an empty vault with no payees, mandates or open requests; all rent goes to the owner. */
+  | { type: "closeVault"; vault: PublicKey };
 
 /**
  * The client contract. `LeashClient` (real, onchain) and any mock used during development implement this.

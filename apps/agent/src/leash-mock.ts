@@ -34,6 +34,22 @@ function mockSig(): string {
   return s.slice(0, 88);
 }
 
+/** VaultState fields added with the rolling-window program; the mock doesn't model them. */
+const NEW_VAULT_FIELDS = () => ({
+  createdAt: Math.floor(Date.now() / 1000),
+  spent24h: 0n,
+  autonomous24h: 0n,
+  cosignWindowThreshold: 0n,
+  strikeWindowStart: 0,
+  enforceTripwire: false,
+  openRequests: 0,
+  openPayees: 0,
+  openMandates: 0,
+  lastBucket: 0,
+  spentBuckets: [] as bigint[],
+  autoBuckets: [] as bigint[],
+});
+
 const u64le = (n: bigint) => {
   const b = Buffer.alloc(8);
   b.writeBigUInt64LE(n);
@@ -98,6 +114,7 @@ export class MockLeashClient implements ILeashClient {
       vaultAta: PublicKey.findProgramAddressSync([Buffer.from("mock-ata"), this.demoVault.toBuffer()], this.programId)[0],
       balance: seed.vaultBalance ?? 1_000_000_000n,
       decimals: 6,
+      ...NEW_VAULT_FIELDS(),
     });
     const payeeAddr = this.payeePda(this.demoVault, seed.merchant);
     this.payees.set(payeeAddr.toBase58(), {
@@ -181,6 +198,9 @@ export class MockLeashClient implements ILeashClient {
       vaultAta: vault,
       balance: 0n,
       decimals: 6,
+      ...NEW_VAULT_FIELDS(),
+      cosignWindowThreshold: args.policy.cosignWindowThreshold,
+      enforceTripwire: args.policy.enforceTripwire,
     });
     return { vault, sig: mockSig() };
   }
@@ -273,6 +293,9 @@ export class MockLeashClient implements ILeashClient {
       case "withdraw":
         if (v.balance < action.amount) throw new Error("InsufficientFunds");
         v.balance -= action.amount;
+        return sig;
+      default:
+        // bumpMandateSeq / closeMandate / closeRequest / closeVault: not modelled by the mock
         return sig;
     }
   }

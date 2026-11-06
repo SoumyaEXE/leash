@@ -25,6 +25,18 @@ export const LEASH_ERROR_NAMES = [
   "LabelTooLong", // 6019
   "InsufficientFunds", // 6020
   "InvalidMandateTerms", // 6021
+  // appended with the path-to-10 program (T1-T13)
+  "AgentIsOwner", // 6022
+  "UnsupportedMint", // 6023
+  "TooManyOpenRequests", // 6024
+  "RequestNotExpired", // 6025
+  "RequestVaultMismatch", // 6026
+  "VaultNotEmpty", // 6027
+  "VaultHasOpenAccounts", // 6028
+  "StaleMandateNonce", // 6029
+  "InvalidIntent", // 6030
+  "MandateSeqNotIncreasing", // 6031
+  "VaultJustOpened", // 6032
 ] as const;
 
 export type LeashErrorName = (typeof LEASH_ERROR_NAMES)[number];
@@ -91,11 +103,12 @@ const FRIENDLY: Record<LeashErrorName, FriendlyError> = {
   },
   ExceedsDailyCap: {
     title: "Over the 24h cap",
-    detail: "This payment would push the vault past its rolling 24-hour limit.",
+    detail: "This payment would push what left the vault in the last 24 hours past the owner's limit.",
   },
   RequiresCosign: {
     title: "Needs the owner's approval",
-    detail: "Payments this large need a live co-signature from the owner (via a Blink).",
+    detail:
+      "This payment, or the agent's unapproved spending over the last 24 hours, reaches the co-sign threshold. The owner has to approve it (via a Blink).",
   },
   RequestNotPending: {
     title: "Already resolved",
@@ -107,7 +120,8 @@ const FRIENDLY: Record<LeashErrorName, FriendlyError> = {
   },
   InvalidMandateSignature: {
     title: "Bad mandate signature",
-    detail: "The mandate wasn't signed by the vault owner over these exact terms.",
+    detail:
+      "The mandate wasn't signed by the vault owner over this exact message (program, cluster, vault, payee, amounts, expiry, nonce, intent).",
   },
   Overflow: {
     title: "Arithmetic overflow",
@@ -133,6 +147,52 @@ const FRIENDLY: Record<LeashErrorName, FriendlyError> = {
     title: "Invalid mandate terms",
     detail: "Mandate limits must be positive and its expiry must be in the future.",
   },
+  AgentIsOwner: {
+    title: "Agent can't be the owner",
+    detail: "The agent key must be different from the owner key, or the agent could approve its own payments.",
+  },
+  UnsupportedMint: {
+    title: "Token not supported",
+    detail:
+      "This mint uses a Token-2022 feature Leash can't enforce safely (fees, hooks, permanent delegate, pausing...) or has more than 18 decimals.",
+  },
+  TooManyOpenRequests: {
+    title: "Too many open requests",
+    detail: "The vault already has 8 open co-sign requests. One has to be approved, rejected or closed (once expired) first.",
+  },
+  RequestNotExpired: {
+    title: "Request still open",
+    detail: "Only an expired spend request can be closed by anyone. This one can still be approved or rejected.",
+  },
+  RequestVaultMismatch: {
+    title: "Request from another vault",
+    detail: "This spend request belongs to a different vault.",
+  },
+  VaultNotEmpty: {
+    title: "Vault still holds tokens",
+    detail: "Withdraw the vault's balance before closing it.",
+  },
+  VaultHasOpenAccounts: {
+    title: "Vault has open accounts",
+    detail: "Remove its payees and close its mandates and open requests before closing the vault.",
+  },
+  StaleMandateNonce: {
+    title: "Mandate signature already used",
+    detail:
+      "This signed mandate was already redeemed or cancelled: its nonce isn't the vault's current mandate sequence. The owner has to sign a new one.",
+  },
+  InvalidIntent: {
+    title: "Invalid mandate intent",
+    detail: "The intent must be 1-100 printable ASCII characters (no newlines, emoji or accents).",
+  },
+  MandateSeqNotIncreasing: {
+    title: "Nonce can only go up",
+    detail: "The new mandate sequence must be greater than the current one.",
+  },
+  VaultJustOpened: {
+    title: "Vault just opened",
+    detail: "A vault can't be closed in the same second it was opened. Try again in a moment.",
+  },
 };
 
 export function friendlyError(name: string): FriendlyError {
@@ -142,23 +202,67 @@ export function friendlyError(name: string): FriendlyError {
   return { title: "Transaction failed", detail: name };
 }
 
-/** Find a Leash error in program logs ("... Error Code: PayeeNotAuthorized. Error Number: 6004 ..."). */
+const ANCHOR_ERROR_RE = /^Program log: AnchorError.*Error Code: (\w+)\. Error Number: (\d+)\. Error Message: (.*?)\.?$/;
+const LEGACY_ERROR_RE = /Error Code: (\w+)\. Error Number: (\d+)\. Error Message: (.*?)\.?$/;
+const INVOKE_LINE = /^Program (\w+) invoke \[\d+\]$/;
+const EXIT_LINE = /^Program (\w+) (success|failed)/;
+const FAILED_CUSTOM = /^Program (\w+) failed: custom program error: 0x([0-9a-fA-F]+)$/;
+
+/**
+ * Find a Leash error in program logs ("... Error Code: PayeeNotAuthorized. Error Number: 6004 ...").
+ *
+ * Pass `programId` (recommended): then only an AnchorError line logged while the Leash program is the innermost
+ * running program counts, plus the runtime's own `Program <leash> failed: custom program error` line. Any program
+ * can `msg!` a fake "Error Code: PayeeNotAuthorized" line, but no program can write the runtime's invoke/failed
+ * lines. Without `programId` any matching line counts (old behaviour).
+ */
 export function parseLeashErrorFromLogs(
   logs: readonly string[] | null | undefined,
+  programId?: { toString(): string },
 ): { name: string; code?: number; message?: string } | undefined {
   if (!logs) return undefined;
-  for (const line of logs) {
-    const m = line.match(/Error Code: (\w+)\. Error Number: (\d+)\. Error Message: (.*?)\.?$/);
-    if (m) return { name: m[1], code: Number(m[2]), message: m[3] };
+  if (!programId) {
+    for (const line of logs) {
+      const m = line.match(LEGACY_ERROR_RE);
+      if (m) return { name: m[1], code: Number(m[2]), message: m[3] };
+    }
+    for (const line of logs) {
+      const m = line.match(/custom program error: 0x([0-9a-fA-F]+)/);
+      if (m) {
+        const code = parseInt(m[1], 16);
+        return { name: errorNameFromCode(code) ?? `Custom(${code})`, code };
+      }
+    }
+    return undefined;
   }
+  const pid = programId.toString();
+  const stack: string[] = [];
+  let anchor: { name: string; code: number; message: string } | undefined;
   for (const line of logs) {
-    const m = line.match(/custom program error: 0x([0-9a-fA-F]+)/);
-    if (m) {
-      const code = parseInt(m[1], 16);
+    const failed = line.match(FAILED_CUSTOM);
+    if (failed && failed[1] === pid) {
+      const code = parseInt(failed[2], 16);
       const name = errorNameFromCode(code);
-      if (name) return { name, code };
-      return { name: `Custom(${code})`, code };
+      // The runtime line is authoritative; the AnchorError line (same frame) only adds the message.
+      if (anchor && anchor.code === code) return anchor;
+      return { name: name ?? `Custom(${code})`, code, message: undefined };
+    }
+    const invoke = line.match(INVOKE_LINE);
+    if (invoke) {
+      stack.push(invoke[1]);
+      continue;
+    }
+    if (EXIT_LINE.test(line)) {
+      stack.pop();
+      continue;
+    }
+    if (stack[stack.length - 1] === pid) {
+      const m = line.match(ANCHOR_ERROR_RE);
+      if (m) anchor = { name: m[1], code: Number(m[2]), message: m[3] };
     }
   }
+  // Simulation logs can end before the runtime's failed line (or be truncated): trust an in-frame AnchorError
+  // only if its number really is a Leash error with that name.
+  if (anchor && errorNameFromCode(anchor.code) === anchor.name) return anchor;
   return undefined;
 }

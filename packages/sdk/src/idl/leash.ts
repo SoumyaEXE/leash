@@ -35,7 +35,8 @@ export type Leash = {
           ]
         },
         {
-          "name": "vault"
+          "name": "vault",
+          "writable": true
         },
         {
           "name": "payeeAccount",
@@ -90,7 +91,8 @@ export type Leash = {
     {
       "name": "agentSpend",
       "docs": [
-        "Strict path: any policy violation reverts with a named error (the red failed tx in the explorer)."
+        "Strict path: any policy violation reverts with a named error (the red failed tx in the explorer).",
+        "If the owner set `enforce_tripwire`, it behaves exactly like `guarded_spend`."
       ],
       "discriminator": [
         23,
@@ -174,12 +176,15 @@ export type Leash = {
         {
           "name": "recipientAta",
           "docs": [
-            "recipient yields a named Leash error, and so guarded_spend can record it instead of reverting."
+            "recipient yields a named Leash error, and so the tripwire can record it instead of reverting."
           ],
           "writable": true
         },
         {
           "name": "payeeAccount",
+          "docs": [
+            "the tripwire can record), not an Anchor deserialization error."
+          ],
           "writable": true,
           "optional": true
         },
@@ -222,7 +227,8 @@ export type Leash = {
     {
       "name": "approveRequest",
       "docs": [
-        "The owner's co-signature: re-checks the policy (except the threshold) and pays."
+        "The owner's co-signature: re-checks the policy (except the co-sign thresholds), pays, and closes the request",
+        "(rent back to the agent). `SpendExecuted.request` names the request this payment settles."
       ],
       "discriminator": [
         89,
@@ -244,10 +250,7 @@ export type Leash = {
         },
         {
           "name": "vault",
-          "writable": true,
-          "relations": [
-            "request"
-          ]
+          "writable": true
         },
         {
           "name": "request",
@@ -326,6 +329,209 @@ export type Leash = {
           "name": "mandateAccount",
           "writable": true,
           "optional": true
+        },
+        {
+          "name": "tokenProgram"
+        },
+        {
+          "name": "agent",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "bumpMandateSeq",
+      "docs": [
+        "Cancel every unredeemed signed mandate: signatures carry `nonce == mandate_seq`, so moving the sequence to",
+        "`new_seq` voids all nonces below it. (Mandate ids skip the cancelled range.)"
+      ],
+      "discriminator": [
+        192,
+        177,
+        162,
+        189,
+        47,
+        245,
+        152,
+        14
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "newSeq",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "closeMandate",
+      "discriminator": [
+        117,
+        87,
+        189,
+        5,
+        254,
+        125,
+        248,
+        180
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "mandate"
+          ]
+        },
+        {
+          "name": "mandate",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "closeRequest",
+      "docs": [
+        "Anyone may close an expired request (frees an open-request slot; rent back to the agent)."
+      ],
+      "discriminator": [
+        170,
+        46,
+        165,
+        120,
+        223,
+        102,
+        115,
+        2
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true
+        },
+        {
+          "name": "request",
+          "writable": true
+        },
+        {
+          "name": "agent",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "closeVault",
+      "docs": [
+        "Close an empty vault: its token account and the vault account are closed, rent to the owner. Payees,",
+        "mandates and open requests must be closed first so no rent is stranded. Not in the vault's first second:",
+        "a re-initialized vault at the same address then always gets a later `created_at`, which is in every",
+        "signed-mandate message, so old signatures can't be replayed against the new vault."
+      ],
+      "discriminator": [
+        141,
+        103,
+        17,
+        126,
+        72,
+        75,
+        29,
+        29
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "vaultAta",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
         },
         {
           "name": "tokenProgram"
@@ -423,8 +629,8 @@ export type Leash = {
     {
       "name": "guardedSpend",
       "docs": [
-        "Tripwire path: a policy violation does NOT revert. It records a strike, emits PaymentBlocked, and may",
-        "auto-pause the vault, so the refusal is counted onchain where anyone can verify it."
+        "Tripwire path: a policy violation does NOT revert. It emits PaymentBlocked and counts it; unauthorized",
+        "attempts also record a strike that may auto-pause the vault, so the refusal is onchain for anyone to verify."
       ],
       "discriminator": [
         75,
@@ -508,12 +714,15 @@ export type Leash = {
         {
           "name": "recipientAta",
           "docs": [
-            "recipient yields a named Leash error, and so guarded_spend can record it instead of reverting."
+            "recipient yields a named Leash error, and so the tripwire can record it instead of reverting."
           ],
           "writable": true
         },
         {
           "name": "payeeAccount",
+          "docs": [
+            "the tripwire can record), not an Anchor deserialization error."
+          ],
           "writable": true,
           "optional": true
         },
@@ -602,6 +811,10 @@ export type Leash = {
         },
         {
           "name": "vaultAta",
+          "docs": [
+            "`init_if_needed`: the vault PDA (and so its ATA address) is predictable, and anyone can create an ATA for any",
+            "owner. A pre-created ATA must not brick this vault_id. Anchor still checks it is the ATA of (vault, mint)."
+          ],
           "writable": true,
           "pda": {
             "seeds": [
@@ -691,8 +904,9 @@ export type Leash = {
     {
       "name": "redeemSignedMandate",
       "docs": [
-        "The owner signed `terms` off-chain (wallet signMessage, no SOL, no tx); the agent redeems it here.",
-        "The tx must be `[Ed25519 precompile ix, redeem_signed_mandate]`."
+        "The owner signed a readable mandate message off-chain (wallet signMessage, no SOL, no tx); the agent redeems",
+        "it here. The tx must be `[Ed25519 precompile ix, redeem_signed_mandate]`. The program rebuilds the message",
+        "from `terms` + program id + cluster + vault + mint and requires the owner's signature over exactly it."
       ],
       "discriminator": [
         12,
@@ -747,6 +961,12 @@ export type Leash = {
           }
         },
         {
+          "name": "mint",
+          "docs": [
+            "The vault mint: its decimals turn base units into the UI amounts the owner read."
+          ]
+        },
+        {
           "name": "instructions",
           "address": "Sysvar1nstructions1111111111111111111111111"
         },
@@ -768,6 +988,9 @@ export type Leash = {
     },
     {
       "name": "rejectRequest",
+      "docs": [
+        "The owner says no. Closes the request (rent back to the agent). Works on expired requests too."
+      ],
       "discriminator": [
         11,
         232,
@@ -788,12 +1011,14 @@ export type Leash = {
         },
         {
           "name": "vault",
-          "relations": [
-            "request"
-          ]
+          "writable": true
         },
         {
           "name": "request",
+          "writable": true
+        },
+        {
+          "name": "agent",
           "writable": true
         }
       ],
@@ -822,6 +1047,7 @@ export type Leash = {
         },
         {
           "name": "vault",
+          "writable": true,
           "relations": [
             "payeeAccount"
           ]
@@ -836,7 +1062,7 @@ export type Leash = {
     {
       "name": "requestSpend",
       "docs": [
-        "Ask the owner to co-sign a payment (typically one at or above the co-sign threshold)."
+        "Ask the owner to co-sign a payment (typically one at or above a co-sign threshold)."
       ],
       "discriminator": [
         127,
@@ -852,7 +1078,7 @@ export type Leash = {
         {
           "name": "agent",
           "docs": [
-            "The agent pays the request account's rent."
+            "The agent pays the request account's rent (refunded when the request is resolved or closed)."
           ],
           "writable": true,
           "signer": true
@@ -1298,6 +1524,19 @@ export type Leash = {
   ],
   "events": [
     {
+      "name": "mandateClosed",
+      "discriminator": [
+        217,
+        212,
+        155,
+        243,
+        4,
+        34,
+        255,
+        65
+      ]
+    },
+    {
       "name": "mandateCreated",
       "discriminator": [
         140,
@@ -1321,6 +1560,19 @@ export type Leash = {
         58,
         131,
         28
+      ]
+    },
+    {
+      "name": "mandateSeqBumped",
+      "discriminator": [
+        13,
+        169,
+        106,
+        245,
+        23,
+        154,
+        232,
+        195
       ]
     },
     {
@@ -1363,6 +1615,19 @@ export type Leash = {
       ]
     },
     {
+      "name": "requestClosed",
+      "discriminator": [
+        59,
+        172,
+        99,
+        75,
+        9,
+        19,
+        226,
+        188
+      ]
+    },
+    {
       "name": "requestResolved",
       "discriminator": [
         37,
@@ -1402,6 +1667,19 @@ export type Leash = {
       ]
     },
     {
+      "name": "vaultClosed",
+      "discriminator": [
+        238,
+        129,
+        38,
+        228,
+        227,
+        118,
+        249,
+        215
+      ]
+    },
+    {
       "name": "vaultFrozen",
       "discriminator": [
         13,
@@ -1425,6 +1703,19 @@ export type Leash = {
         15,
         250,
         111
+      ]
+    },
+    {
+      "name": "withdrawn",
+      "discriminator": [
+        20,
+        89,
+        223,
+        198,
+        194,
+        124,
+        219,
+        13
       ]
     }
   ],
@@ -1487,12 +1778,12 @@ export type Leash = {
     {
       "code": 6011,
       "name": "exceedsDailyCap",
-      "msg": "Amount exceeds the vault's 24h cap"
+      "msg": "Amount exceeds the vault's rolling 24h cap"
     },
     {
       "code": 6012,
       "name": "requiresCosign",
-      "msg": "Amount needs owner co-signature; submit a spend request"
+      "msg": "Amount needs owner co-signature (single payment or 24h autonomous total over the threshold); submit a spend request"
     },
     {
       "code": 6013,
@@ -1538,6 +1829,61 @@ export type Leash = {
       "code": 6021,
       "name": "invalidMandateTerms",
       "msg": "Invalid mandate terms: limits must be positive and expiry in the future"
+    },
+    {
+      "code": 6022,
+      "name": "agentIsOwner",
+      "msg": "The agent key must be different from the owner key"
+    },
+    {
+      "code": 6023,
+      "name": "unsupportedMint",
+      "msg": "Unsupported mint: Token-2022 fee, hook, permanent delegate, pausable, default state, non-transferable, close authority or scaled amounts, or more than 18 decimals"
+    },
+    {
+      "code": 6024,
+      "name": "tooManyOpenRequests",
+      "msg": "Too many open spend requests; the owner must approve or reject one first"
+    },
+    {
+      "code": 6025,
+      "name": "requestNotExpired",
+      "msg": "Spend request has not expired yet"
+    },
+    {
+      "code": 6026,
+      "name": "requestVaultMismatch",
+      "msg": "Spend request belongs to another vault"
+    },
+    {
+      "code": 6027,
+      "name": "vaultNotEmpty",
+      "msg": "Vault still holds tokens; withdraw them first"
+    },
+    {
+      "code": 6028,
+      "name": "vaultHasOpenAccounts",
+      "msg": "Close the vault's payees, mandates and open requests first"
+    },
+    {
+      "code": 6029,
+      "name": "staleMandateNonce",
+      "msg": "Mandate signature was already used or cancelled (nonce is not the vault's current mandate sequence)"
+    },
+    {
+      "code": 6030,
+      "name": "invalidIntent",
+      "msg": "Mandate intent must be 1-100 printable ASCII characters"
+    },
+    {
+      "code": 6031,
+      "name": "mandateSeqNotIncreasing",
+      "msg": "New mandate sequence must be greater than the current one"
+    },
+    {
+      "code": 6032,
+      "name": "vaultJustOpened",
+      "msg": "A vault can't be closed in the same second it was opened"
     }
   ],
   "types": [
@@ -1597,7 +1943,8 @@ export type Leash = {
           {
             "name": "intentHash",
             "docs": [
-              "sha256 of the human-readable intent text (shown in the dashboard)."
+              "sha256 of the human-readable intent text. For signed mandates the program hashes the exact text the owner",
+              "signed."
             ],
             "type": {
               "array": [
@@ -1613,6 +1960,26 @@ export type Leash = {
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "mandateClosed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "mandate",
+            "type": "pubkey"
+          },
+          {
+            "name": "ts",
+            "type": "i64"
           }
         ]
       }
@@ -1682,10 +2049,9 @@ export type Leash = {
       }
     },
     {
-      "name": "mandateTerms",
+      "name": "mandateSeqBumped",
       "docs": [
-        "Terms the owner signs off-chain for `redeem_signed_mandate`.",
-        "`nonce` must equal `vault.mandate_seq`, which makes every signature single-use."
+        "Owner cancelled every unredeemed signed mandate with a nonce below `mandate_seq`."
       ],
       "type": {
         "kind": "struct",
@@ -1694,6 +2060,28 @@ export type Leash = {
             "name": "vault",
             "type": "pubkey"
           },
+          {
+            "name": "mandateSeq",
+            "type": "u64"
+          },
+          {
+            "name": "ts",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "mandateTerms",
+      "docs": [
+        "Terms the owner signs off-chain for `redeem_signed_mandate`. The vault, program id, cluster and mint come from",
+        "the accounts; the program rebuilds the readable message from all of them and checks the owner's signature over",
+        "exactly those bytes. `nonce` must equal `vault.mandate_seq`, which makes every signature single-use, and the",
+        "owner can cancel unredeemed signatures with `bump_mandate_seq`."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
           {
             "name": "payee",
             "type": "pubkey"
@@ -1711,17 +2099,15 @@ export type Leash = {
             "type": "i64"
           },
           {
-            "name": "intentHash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
             "name": "nonce",
             "type": "u64"
+          },
+          {
+            "name": "intent",
+            "docs": [
+              "Shown to the owner in the wallet prompt; stored onchain as sha256(intent)."
+            ],
+            "type": "string"
           }
         ]
       }
@@ -1741,7 +2127,7 @@ export type Leash = {
           {
             "name": "payee",
             "docs": [
-              "Wallet that receives; payments go to its token account for the vault mint."
+              "Wallet that receives; payments go to its associated token account for the vault mint."
             ],
             "type": "pubkey"
           },
@@ -1850,6 +2236,14 @@ export type Leash = {
           {
             "name": "ts",
             "type": "i64"
+          },
+          {
+            "name": "strike",
+            "docs": [
+              "true = unauthorized attempt (unknown payee or redirected recipient) that counted as a strike;",
+              "false = benign block (cap, budget, expiry...) recorded without a strike."
+            ],
+            "type": "bool"
           }
         ]
       }
@@ -1881,6 +2275,20 @@ export type Leash = {
           {
             "name": "freezeAfterStrikes",
             "type": "u8"
+          },
+          {
+            "name": "cosignWindowThreshold",
+            "docs": [
+              "See `Vault::cosign_window_threshold`. 0 = disabled."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "enforceTripwire",
+            "docs": [
+              "See `Vault::enforce_tripwire`."
+            ],
+            "type": "bool"
           }
         ]
       }
@@ -1892,6 +2300,29 @@ export type Leash = {
         "fields": [
           {
             "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "ts",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "requestClosed",
+      "docs": [
+        "An expired spend request was closed (permissionless crank); rent went back to the agent."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "request",
             "type": "pubkey"
           },
           {
@@ -1993,6 +2424,15 @@ export type Leash = {
           {
             "name": "ts",
             "type": "i64"
+          },
+          {
+            "name": "request",
+            "docs": [
+              "The co-signed SpendRequest this payment settles (approve_request), so a verifier can bind the payment to it."
+            ],
+            "type": {
+              "option": "pubkey"
+            }
           }
         ]
       }
@@ -2000,7 +2440,8 @@ export type Leash = {
     {
       "name": "spendRequest",
       "docs": [
-        "A payment over the co-sign threshold, waiting for the owner (approved via a Blink)."
+        "A payment waiting for the owner's co-sign (approved via a Blink). The account only exists while it is open:",
+        "approve / reject / close_request close it and refund the rent to the vault's agent."
       ],
       "type": {
         "kind": "struct",
@@ -2122,7 +2563,7 @@ export type Leash = {
           {
             "name": "agent",
             "docs": [
-              "Agent signing key: may *request* payments, never authorize them. Holds only fee SOL."
+              "Agent signing key: may *request* payments, never authorize them. Holds only fee SOL. Never equal to owner."
             ],
             "type": "pubkey"
           },
@@ -2138,6 +2579,14 @@ export type Leash = {
             "type": "u64"
           },
           {
+            "name": "createdAt",
+            "docs": [
+              "Unix time the vault was initialized. Part of every signed-mandate message, so a signature for an earlier",
+              "vault at the same address (closed, then re-initialized with the same vault_id) never verifies again."
+            ],
+            "type": "i64"
+          },
+          {
             "name": "paused",
             "docs": [
               "Kill switch."
@@ -2151,22 +2600,22 @@ export type Leash = {
           {
             "name": "dailyCap",
             "docs": [
-              "Rolling 24h cap."
+              "Rolling 24h cap on everything that leaves the vault (autonomous and co-signed)."
             ],
-            "type": "u64"
-          },
-          {
-            "name": "windowStart",
-            "type": "i64"
-          },
-          {
-            "name": "spentInWindow",
             "type": "u64"
           },
           {
             "name": "cosignThreshold",
             "docs": [
-              "amount >= this needs an owner co-sign (spend request). 0 = disabled."
+              "A single payment >= this needs an owner co-sign (spend request). 0 = disabled."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "cosignWindowThreshold",
+            "docs": [
+              "Once the agent's un-co-signed spending in the rolling 24h would reach this, every further payment needs a",
+              "co-sign (stops 5 x 0.19 under a 0.20 threshold). 0 = disabled."
             ],
             "type": "u64"
           },
@@ -2189,18 +2638,21 @@ export type Leash = {
           {
             "name": "blockedCount",
             "docs": [
-              "Tripwire (guarded_spend): counts every refused attempt, readable by anyone."
+              "Every refused attempt recorded by the tripwire (strike or not), readable by anyone."
             ],
             "type": "u64"
           },
           {
             "name": "strikes",
+            "docs": [
+              "Unauthorized attempts (attacker payee / redirected recipient) in the current strike window."
+            ],
             "type": "u8"
           },
           {
             "name": "freezeAfterStrikes",
             "docs": [
-              "Auto-pause after this many strikes. 0 = never."
+              "Auto-pause after this many strikes within one strike window. 0 = never."
             ],
             "type": "u8"
           },
@@ -2209,8 +2661,82 @@ export type Leash = {
             "type": "i64"
           },
           {
+            "name": "strikeWindowStart",
+            "docs": [
+              "Start of the current 24h strike window (set by the first strike after the previous window ran out)."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "enforceTripwire",
+            "docs": [
+              "When true, `agent_spend` behaves like `guarded_spend`: an attacker holding the agent key can't dodge the",
+              "tripwire by picking the strict path."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "openRequests",
+            "type": "u16"
+          },
+          {
+            "name": "openPayees",
+            "type": "u16"
+          },
+          {
+            "name": "openMandates",
+            "type": "u16"
+          },
+          {
+            "name": "lastBucket",
+            "docs": [
+              "Hour index (unix_ts / 3600) of the newest bucket in both rings."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "spentBuckets",
+            "docs": [
+              "Everything paid out, per hour: slot = hour % 25."
+            ],
+            "type": {
+              "array": [
+                "u64",
+                25
+              ]
+            }
+          },
+          {
+            "name": "autoBuckets",
+            "docs": [
+              "Payments the agent made without a co-sign (agent_spend / guarded_spend), per hour: slot = hour % 25."
+            ],
+            "type": {
+              "array": [
+                "u64",
+                25
+              ]
+            }
+          },
+          {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "vaultClosed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "ts",
+            "type": "i64"
           }
         ]
       }
@@ -2247,6 +2773,33 @@ export type Leash = {
           {
             "name": "paused",
             "type": "bool"
+          },
+          {
+            "name": "ts",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "withdrawn",
+      "docs": [
+        "Owner moved funds out of the vault."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "to",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
           },
           {
             "name": "ts",
