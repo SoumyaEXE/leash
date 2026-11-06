@@ -1,0 +1,12 @@
+packages:
+  - "packages/*"
+  - "apps/*"
+  - "scripts"
+
+onlyBuiltDependencies:
+  - bufferutil
+  - utf-8-validate
+  - esbuild
+  - sharp
+  - better-sqlite3
+  - "@tailwindcss/oxide"

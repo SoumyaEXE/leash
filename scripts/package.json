@@ -1,0 +1,22 @@
+{
+  "name": "scripts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "keys": "tsx keygen.ts",
+    "balances": "tsx balances.ts",
+    "setup": "tsx setup-devnet.ts",
+    "reset": "tsx reset-demo.ts"
+  },
+  "dependencies": {
+    "@leash/sdk": "workspace:*",
+    "@solana/spl-token": "^0.4.15",
+    "@solana/web3.js": "^1.99.0",
+    "dotenv": "^17.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "5.9.3"
+  }
+}

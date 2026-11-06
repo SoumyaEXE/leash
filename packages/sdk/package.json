@@ -1,0 +1,33 @@
+{
+  "name": "@leash/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript client for the Leash Solana program: PDAs, instruction builders, spend() with named errors, activity stream",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./errors": "./src/errors.ts",
+    "./demo": "./src/demo.ts",
+    "./idl/leash.json": "./src/idl/leash.json"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "test:devnet": "tsx test/devnet.test.ts"
+  },
+  "dependencies": {
+    "@anchor-lang/core": "1.2.2",
+    "@noble/hashes": "^1.8.0",
+    "@solana/spl-token": "^0.4.15",
+    "@solana/web3.js": "^1.99.0",
+    "bn.js": "^5.2.3",
+    "bs58": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.1.6",
+    "@types/node": "^24.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "5.9.3"
+  }
+}
