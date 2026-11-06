@@ -3,13 +3,18 @@
 import { PublicKey } from "@solana/web3.js";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import {
-  buildMandateMessage,
+  MAX_INTENT_LEN,
+  encodeSignedMandate,
   fromBaseUnits,
-  reasonHash,
+  mandateContextFor,
+  mandateMessageText,
+  mandateTermsError,
+  signMandate,
   toBaseUnits,
   toHex,
   type ActivityEvent,
   type MandateState,
+  type MandateTermsArgs,
   type PayeeState,
   type RequestState,
   type VaultState,
@@ -77,26 +82,19 @@ function ActivityRow({ e, labels }: { e: ActivityEvent; labels: Map<string, stri
         : e.kind === "requested"
           ? "border-l-[#f5a524]"
           : "border-l-white/25";
-  const title =
-    e.kind === "blocked"
-      ? `Blocked onchain · ${e.errorName ?? "rejected"}`
-      : e.kind === "spent"
-        ? `Paid${e.via ? ` via ${e.via}` : ""}`
-        : e.kind === "requested"
-          ? "Co-sign requested"
-          : e.kind === "resolved"
-            ? e.approved
-              ? "Request approved"
-              : "Request rejected"
-            : e.kind === "paused"
-              ? e.paused
-                ? "Vault paused"
-                : "Vault unpaused"
-              : e.kind === "frozen"
-                ? "Tripwire froze the vault"
-                : e.kind === "mandate"
-                  ? "Mandate updated"
-                  : "Policy updated";
+  const titles: Record<ActivityEvent["kind"], string> = {
+    blocked: `Blocked onchain · ${e.errorName ?? "rejected"}${e.strike === true ? " · strike" : e.strike === false ? " · no strike" : ""}`,
+    spent: `Paid${e.via ? ` via ${e.via}` : ""}`,
+    requested: "Co-sign requested",
+    resolved: e.approved ? "Request approved" : "Request rejected",
+    paused: e.paused ? "Vault paused" : "Vault unpaused",
+    frozen: "Tripwire froze the vault",
+    mandate: "Mandate updated",
+    policy: "Policy updated",
+    withdrawn: "Owner withdrew",
+    closed: e.request ? "Expired request closed" : e.mandate ? "Mandate closed" : "Vault closed",
+  };
+  const title = titles[e.kind] ?? "Vault updated";
   const payee = e.payee ? (labels.get(e.payee) ?? short(e.payee, 5)) : null;
   return (
     <li className={`border-l-2 ${tone} py-3 pl-4`}>
@@ -187,6 +185,12 @@ export function VaultDashboard() {
     for (const e of activity) if (e.kind === "requested" && e.request && e.reason) m.set(e.request, e.reason);
     return m;
   }, [activity]);
+  /** request address → what was asked, from the SpendRequested events (the program closes resolved requests) */
+  const asked = useMemo(() => {
+    const m = new Map<string, { amount?: bigint; payee?: string }>();
+    for (const e of activity) if (e.kind === "requested" && e.request) m.set(e.request, { amount: e.amount, payee: e.payee });
+    return m;
+  }, [activity]);
 
   const act = async (action: Parameters<typeof run>[0], label: string) => {
     if (await run(action, label)) await load();
@@ -195,7 +199,9 @@ export function VaultDashboard() {
   // forms
   const [np, setNp] = useState({ address: "", label: "", perTx: "0.50", budget: "5.00" });
   const [nm, setNm] = useState({ payee: "", maxTotal: "2.00", perTx: "0.50", days: "7", intent: "" });
-  const [signed, setSigned] = useState<string | null>(null);
+  /** exported signed mandate (JSON) for the agent, and the nonce it was signed with */
+  const [signed, setSigned] = useState<{ json: string; nonce: bigint } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const addPayee = async () => {
     try {
@@ -228,28 +234,81 @@ export function VaultDashboard() {
     }
   };
 
-  /** SHOULD path: owner signs the exact terms off-chain (Phantom signMessage, no tx); the agent redeems them. */
-  const signMandate = async () => {
-    if (!wallet.signMessage || !vault) return;
+  /**
+   * Off-chain mandate terms from the form. Expiry is rounded up to the minute so the preview doesn't change every
+   * second. The nonce is the vault's current mandate sequence (each signature is single-use).
+   */
+  const draftTerms = (v: VaultState): { terms: MandateTermsArgs } | { error: string } => {
+    let payee: PublicKey;
     try {
-      const terms = {
-        vault: vaultAddr,
-        payee: new PublicKey(nm.payee.trim()),
-        maxTotal: toBaseUnits(nm.maxTotal),
-        maxPerTx: toBaseUnits(nm.perTx),
-        expiresAt: Math.floor(Date.now() / 1000) + Number(nm.days) * 86400,
-        intentHash: reasonHash(nm.intent.trim() || "Owner-approved purpose"),
-        nonce: vault.mandateSeq,
-      };
-      const sig = await wallet.signMessage(buildMandateMessage(terms));
-      setSigned(toHex(sig));
+      payee = new PublicKey(nm.payee.trim());
+    } catch {
+      return { error: "Enter the payee's wallet address to preview the message." };
+    }
+    let maxTotal: bigint;
+    let maxPerTx: bigint;
+    try {
+      maxTotal = toBaseUnits(nm.maxTotal, v.decimals);
+      maxPerTx = toBaseUnits(nm.perTx, v.decimals);
+    } catch (e) {
+      return { error: (e as Error).message };
+    }
+    const days = Number(nm.days);
+    if (!Number.isFinite(days) || days <= 0) return { error: "Expiry must be a positive number of days." };
+    const expiresAt = Math.ceil((Date.now() / 1000 + days * 86_400) / 60) * 60;
+    const terms: MandateTermsArgs = { payee, maxTotal, maxPerTx, expiresAt, nonce: v.mandateSeq, intent: nm.intent.trim() };
+    const problem = mandateTermsError(terms);
+    return problem ? { error: problem } : { terms };
+  };
+
+  const draft = vault ? draftTerms(vault) : null;
+  const preview =
+    vault && draft && "terms" in draft ? mandateMessageText(mandateContextFor(vault, client.programId, "devnet"), draft.terms) : null;
+
+  /** T5: the owner signs the readable message (wallet signMessage, no tx, no SOL); the agent redeems the export. */
+  const signOffchain = async () => {
+    if (!wallet.signMessage || !wallet.publicKey || !vault || !draft || !("terms" in draft)) return;
+    if (!wallet.publicKey.equals(vault.owner)) {
+      alert("Connect the vault owner's wallet: the program only accepts the owner's signature.");
+      return;
+    }
+    try {
+      const s = await signMandate(
+        { publicKey: wallet.publicKey, signMessage: wallet.signMessage },
+        mandateContextFor(vault, client.programId, "devnet"),
+        draft.terms,
+      );
+      setSigned({ json: encodeSignedMandate(s), nonce: s.terms.nonce });
+      setCopied(false);
     } catch (e) {
       alert((e as Error).message);
     }
   };
 
+  const copySigned = async () => {
+    if (!signed) return;
+    try {
+      await navigator.clipboard.writeText(signed.json);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  const downloadSigned = () => {
+    if (!signed) return;
+    const url = URL.createObjectURL(new Blob([signed.json], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `leash-mandate-${vaultAddr.toBase58().slice(0, 6)}-nonce-${signed.nonce}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const pendingReqs = requests.filter((r) => r.status === "pending");
-  const resolvedReqs = requests.filter((r) => r.status !== "pending").slice(0, 4);
+  const expiredReqs = requests.filter((r) => r.status === "expired");
+  // Approved / rejected requests are closed onchain: the outcome lives in the program's events.
+  const resolvedReqs = activity.filter((e) => e.kind === "resolved" && e.request).slice(0, 4);
 
   return (
     <div className="mx-auto max-w-[1320px] px-5 pb-10 sm:px-8 min-[1400px]:px-0">
@@ -299,11 +358,22 @@ export function VaultDashboard() {
                   <div className="tabular flex justify-between text-[14px]">
                     <span className="text-white/60">Spent in the last 24h</span>
                     <span>
-                      {fmt(vault.spentInWindow)} / {fmt(vault.dailyCap)}
+                      {fmt(vault.spent24h)} / {fmt(vault.dailyCap)}
                     </span>
                   </div>
-                  <Meter value={vault.spentInWindow} max={vault.dailyCap} />
+                  <Meter value={vault.spent24h} max={vault.dailyCap} />
                 </div>
+                {vault.cosignWindowThreshold > 0n && (
+                  <div className="mt-4 space-y-2">
+                    <div className="tabular flex justify-between text-[14px]">
+                      <span className="text-white/60">Without your co-sign, last 24h</span>
+                      <span>
+                        {fmt(vault.autonomous24h)} / {fmt(vault.cosignWindowThreshold)}
+                      </span>
+                    </div>
+                    <Meter value={vault.autonomous24h} max={vault.cosignWindowThreshold} />
+                  </div>
+                )}
                 <dl className="mt-6 grid grid-cols-2 gap-4 text-[14px]">
                   <div>
                     <dt className="text-white/55">Per-payment cap</dt>
@@ -313,6 +383,12 @@ export function VaultDashboard() {
                     <dt className="text-white/55">Co-sign above</dt>
                     <dd className="tabular mt-1 text-[16px]">{vault.cosignThreshold > 0n ? `${fmt(vault.cosignThreshold)} dUSDC` : "off"}</dd>
                   </div>
+                  {vault.cosignWindowThreshold > 0n && (
+                    <div>
+                      <dt className="text-white/55">Co-sign once 24h total reaches</dt>
+                      <dd className="tabular mt-1 text-[16px]">{fmt(vault.cosignWindowThreshold)} dUSDC</dd>
+                    </div>
+                  )}
                   <div>
                     <dt className="text-white/55">Request TTL</dt>
                     <dd className="tabular mt-1 text-[16px]">{Math.round(vault.requestTtlSecs / 60)} min</dd>
@@ -343,10 +419,15 @@ export function VaultDashboard() {
                   </div>
                 </div>
                 <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-5">
-                  <div className="text-[18px]">Tripwire</div>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <div className="text-[18px]">Tripwire</div>
+                    <div className="text-[13px] text-white/55">{vault.enforceTripwire ? "On for every spend" : "guarded_spend only"}</div>
+                  </div>
                   <div className="mt-3 grid grid-cols-3 gap-3 text-[14px]">
                     <div>
-                      <div className="text-white/55">Strikes</div>
+                      <div className="text-white/55" title="Unauthorized attempts in the last 24h. Caps and budgets never strike.">
+                        Strikes (24h)
+                      </div>
                       <div className="tabular mt-1 text-[24px] leading-8">
                         {vault.strikes}
                         <span className="text-[14px] text-white/45">/{vault.freezeAfterStrikes || "∞"}</span>
@@ -414,18 +495,39 @@ export function VaultDashboard() {
               })}
             </ul>
           )}
+          {expiredReqs.length > 0 && (
+            <div className="mt-6">
+              <div className="mb-2 text-[14px] text-white/50">Expired, still holding a slot ({vault?.openRequests ?? requests.length}/8 open)</div>
+              <ul className="tabular space-y-2 text-[14px] text-white/70">
+                {expiredReqs.map((r) => (
+                  <li key={r.address.toBase58()} className="flex items-center justify-between gap-3">
+                    <span>
+                      #{r.seq.toString()} · {fmt(r.amount)} dUSDC to {labels.get(r.payee.toBase58()) ?? short(r.payee.toBase58(), 4)}
+                    </span>
+                    <OutlineButton size="sm" disabled={!!pending} onClick={() => void act({ type: "closeRequest", vault: vaultAddr, request: r.address }, "Close expired request")}>
+                      Close (rent to agent)
+                    </OutlineButton>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {resolvedReqs.length > 0 && (
             <div className="mt-6">
               <div className="mb-2 text-[14px] text-white/50">Recently resolved</div>
               <ul className="tabular space-y-1.5 text-[14px] text-white/70">
-                {resolvedReqs.map((r) => (
-                  <li key={r.address.toBase58()} className="flex justify-between">
-                    <span>
-                      #{r.seq.toString()} · {fmt(r.amount)} dUSDC to {labels.get(r.payee.toBase58()) ?? short(r.payee.toBase58(), 4)}
-                    </span>
-                    <span className={r.status === "approved" ? "text-[#8ee8ae]" : "text-white/60"}>{r.status}</span>
-                  </li>
-                ))}
+                {resolvedReqs.map((e) => {
+                  const a = asked.get(e.request!);
+                  return (
+                    <li key={`${e.sig}-${e.request}`} className="flex justify-between gap-3">
+                      <span className="truncate">
+                        {a?.amount !== undefined ? `${fmt(a.amount)} dUSDC` : short(e.request, 4)}
+                        {a?.payee ? ` to ${labels.get(a.payee) ?? short(a.payee, 4)}` : ""}
+                      </span>
+                      <span className={e.approved ? "text-[#8ee8ae]" : "text-white/60"}>{e.approved ? "approved" : "rejected"}</span>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
@@ -522,14 +624,15 @@ export function VaultDashboard() {
             <ul className="flex flex-col gap-3">
               {mandates.map((m) => {
                 const expired = m.expiresAt <= Date.now() / 1000;
+                const usedUp = m.spent >= m.maxTotal;
                 return (
                   <li key={m.address.toBase58()} className="rounded-[16px] border border-white/10 bg-white/[0.03] p-4">
                     <div className="flex flex-wrap items-baseline justify-between gap-3">
                       <span className="text-[16px]">
                         #{m.id.toString()} · {labels.get(m.payee.toBase58()) ?? short(m.payee.toBase58(), 5)}
                       </span>
-                      <span className={`text-[14px] ${m.revoked || expired ? "text-[#ffb0a6]" : "text-[#8ee8ae]"}`}>
-                        {m.revoked ? "revoked" : expired ? "expired" : `expires ${new Date(m.expiresAt * 1000).toLocaleDateString()}`}
+                      <span className={`text-[14px] ${m.revoked || expired || usedUp ? "text-[#ffb0a6]" : "text-[#8ee8ae]"}`}>
+                        {m.revoked ? "revoked" : expired ? "expired" : usedUp ? "used up" : `expires ${new Date(m.expiresAt * 1000).toLocaleDateString()}`}
                       </span>
                     </div>
                     <div className="tabular mt-2 grid grid-cols-3 gap-3 text-[14px]">
@@ -545,13 +648,18 @@ export function VaultDashboard() {
                         intent {toHex(m.intentHash).slice(0, 12)}…
                       </span>
                     </div>
-                    {!m.revoked && !expired && (
-                      <div className="mt-3">
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {!m.revoked && !expired && !usedUp && (
                         <OutlineButton size="sm" tone="danger" disabled={!!pending} onClick={() => void act({ type: "revokeMandate", vault: vaultAddr, mandate: m.address }, "Revoke mandate")}>
                           Revoke
                         </OutlineButton>
-                      </div>
-                    )}
+                      )}
+                      {(m.revoked || expired || usedUp) && (
+                        <OutlineButton size="sm" disabled={!!pending} onClick={() => void act({ type: "closeMandate", vault: vaultAddr, mandate: m.address }, "Close mandate")}>
+                          Close (refund rent)
+                        </OutlineButton>
+                      )}
+                    </div>
                   </li>
                 );
               })}
@@ -560,8 +668,14 @@ export function VaultDashboard() {
               <Field label="Payee wallet">
                 <input className={inputCls} value={nm.payee} onChange={(e) => setNm({ ...nm, payee: e.target.value })} placeholder="Base58 address" />
               </Field>
-              <Field label="Intent (shown to you, hashed onchain)">
-                <input className={inputCls} value={nm.intent} onChange={(e) => setNm({ ...nm, intent: e.target.value })} placeholder="Weekly wallet-flow reports from Nansen" />
+              <Field label={`Intent (${new TextEncoder().encode(nm.intent.trim()).length}/${MAX_INTENT_LEN}, plain ASCII, hashed onchain)`}>
+                <input
+                  className={inputCls}
+                  value={nm.intent}
+                  maxLength={MAX_INTENT_LEN}
+                  onChange={(e) => setNm({ ...nm, intent: e.target.value })}
+                  placeholder="Weekly wallet-flow reports from Nansen"
+                />
               </Field>
               <div className="grid grid-cols-3 gap-3 sm:col-span-2">
                 <Field label="Max total">
@@ -579,15 +693,55 @@ export function VaultDashboard() {
                   Create mandate (owner tx)
                 </PrimaryButton>
                 {!mock && wallet.signMessage && (
-                  <OutlineButton size="md" disabled={!nm.payee} onClick={() => void signMandate()}>
+                  <OutlineButton size="md" disabled={!preview} onClick={() => void signOffchain()}>
                     Sign off-chain (no SOL)
                   </OutlineButton>
                 )}
               </div>
-              {signed && (
-                <p className="break-all font-mono text-[12px] leading-5 text-white/65 sm:col-span-2">
-                  Signed mandate (Ed25519). Hand this to the agent to redeem: {signed}
+              <div className="sm:col-span-2">
+                <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="text-[14px] text-white/60">What your wallet will show (the program checks these exact bytes)</span>
+                  {vault && <span className="tabular text-[13px] text-white/45">nonce {vault.mandateSeq.toString()}</span>}
+                </div>
+                {preview ? (
+                  <pre className="max-h-[320px] overflow-auto whitespace-pre-wrap break-all rounded-[14px] border border-white/10 bg-black/50 p-4 font-mono text-[12.5px] leading-[20px] text-white/80">
+                    {preview}
+                  </pre>
+                ) : (
+                  <p className="rounded-[14px] border border-white/10 bg-white/[0.02] p-4 text-[14px] text-white/55">
+                    {draft && "error" in draft ? draft.error : "Loading the vault…"}
+                  </p>
+                )}
+                <p className="mt-2 text-[13px] leading-5 text-white/50">
+                  One signature per nonce: if you sign twice before the agent redeems, only the first one redeemed counts. Signed by mistake?{" "}
+                  <button
+                    type="button"
+                    disabled={!!pending || !vault}
+                    onClick={() => void act({ type: "bumpMandateSeq", vault: vaultAddr }, "Cancel unredeemed signatures")}
+                    className="text-[#ffb0a6] underline-offset-2 hover:underline disabled:opacity-40"
+                  >
+                    Cancel unredeemed signatures
+                  </button>
                 </p>
+              </div>
+              {signed && (
+                <div className="rounded-[16px] border border-[#0cbe4d]/40 bg-[#0cbe4d]/[0.05] p-4 sm:col-span-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[15px] text-[#8ee8ae]">Signed (nonce {signed.nonce.toString()}). Hand this to the agent to redeem.</span>
+                    <div className="flex gap-2">
+                      <OutlineButton size="sm" tone="ok" onClick={() => void copySigned()}>
+                        {copied ? "Copied" : "Copy JSON"}
+                      </OutlineButton>
+                      <OutlineButton size="sm" onClick={downloadSigned}>
+                        Download
+                      </OutlineButton>
+                    </div>
+                  </div>
+                  <pre className="mt-3 max-h-[220px] overflow-auto whitespace-pre-wrap break-all font-mono text-[12px] leading-5 text-white/70">{signed.json}</pre>
+                  <p className="mt-2 text-[13px] text-white/50">
+                    Agent side: <code className="font-mono">leash.redeemSignedMandate(json)</code> sends [Ed25519 verify, redeem_signed_mandate].
+                  </p>
+                </div>
               )}
             </div>
           </Card>
