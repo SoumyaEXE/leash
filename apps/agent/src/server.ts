@@ -2,8 +2,13 @@
  * Demo runner HTTP API for apps/web (/demo buttons). Wire contract: packages/sdk/src/demo.ts
  *   GET  /health · GET /balances · POST /run {mode, scenario} · POST /run-split {scenario} · POST /reset
  * Extras (additive): GET /requests/:request (co-sign progress, S4) · GET /activity (Leash activity feed)
+ *
+ * Exposure: binds loopback only (127.0.0.1 and ::1) unless HOST is set (e.g. HOST=0.0.0.0 on a hosting box).
+ * When AGENT_TOKEN is set, POST /run, /run-split and /reset need "Authorization: Bearer <AGENT_TOKEN>"; the hosted
+ * web app adds it server-side through /api/agent/*. With no token (local demo) nothing changes.
  */
-import express, { type NextFunction, type Request, type Response } from "express";
+import { timingSafeEqual } from "node:crypto";
+import express, { type NextFunction, type Request, type RequestHandler, type Response } from "express";
 import type { DemoMode, ScenarioId } from "@leash/sdk/demo";
 import { checkRequest, startApprovalWatcher } from "./approvals";
 import { getBalances, invalidateBalances } from "./balances";
@@ -26,7 +31,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   }
   if (req.method === "OPTIONS") {
     res.sendStatus(204);
@@ -34,6 +39,22 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   }
   next();
 });
+
+const TOKEN = process.env.AGENT_TOKEN?.trim() ?? "";
+
+/** Bearer-token gate for the endpoints that move money or reset state. No-op when AGENT_TOKEN is unset. */
+const requireToken: RequestHandler = (req, res, next) => {
+  if (!TOKEN) return next();
+  const m = /^Bearer\s+(.+)$/i.exec(req.get("authorization") ?? "");
+  const given = Buffer.from(m?.[1]?.trim() ?? "");
+  const want = Buffer.from(TOKEN);
+  if (given.length !== want.length || !timingSafeEqual(given, want)) {
+    res.setHeader("WWW-Authenticate", 'Bearer realm="leash-agent"');
+    res.status(401).json({ error: "Unauthorized: this agent server needs a bearer token (AGENT_TOKEN)." });
+    return;
+  }
+  next();
+};
 
 /** One run per wallet at a time: overlapping devnet transfers from the same wallet confuse the demo. */
 const busy = new Set<DemoMode>();
@@ -69,7 +90,7 @@ app.get("/balances", async (_req, res) => {
   }
 });
 
-app.post("/run", async (req, res) => {
+app.post("/run", requireToken, async (req, res) => {
   const p = parseRunBody(req.body);
   if (p.error || !p.mode || !p.scenario) {
     res.status(400).json({ error: p.error ?? "mode is required" });
@@ -84,7 +105,7 @@ app.post("/run", async (req, res) => {
   res.json(out);
 });
 
-app.post("/run-split", async (req, res) => {
+app.post("/run-split", requireToken, async (req, res) => {
   const p = parseRunBody(req.body);
   if (p.error || !p.scenario) {
     res.status(400).json({ error: p.error });
@@ -105,7 +126,7 @@ app.post("/run-split", async (req, res) => {
   res.json(out);
 });
 
-app.post("/reset", async (_req, res) => {
+app.post("/reset", requireToken, async (_req, res) => {
   const out = await exclusive(MODES, () => resetDemo());
   invalidateBalances();
   if (!out) {
@@ -126,6 +147,22 @@ app.get("/activity", async (_req, res) => {
 });
 
 startApprovalWatcher();
-app.listen(s.port, () => {
-  console.log(`Leash demo agents on http://localhost:${s.port} (Leash client: ${getLeash().kind}, x402: ${s.x402Url})`);
-});
+
+// Loopback by default: the demo runner moves devnet funds and must not be reachable from the LAN.
+const HOST = process.env.HOST?.trim();
+const hosts = HOST ? [HOST] : ["127.0.0.1", "::1"];
+for (const host of hosts) {
+  const srv = app.listen(s.port, host, () => {
+    if (host !== hosts[0]) return;
+    console.log(
+      `Leash demo agents on http://${host.includes(":") ? `[${host}]` : host}:${s.port}${HOST ? "" : " (loopback only; set HOST to expose)"} ` +
+        `(Leash client: ${getLeash().kind}, x402: ${s.x402Url}${TOKEN ? ", bearer token required for /run* and /reset" : ""})`,
+    );
+  });
+  srv.on("error", (e: NodeJS.ErrnoException) => {
+    // no IPv6 loopback on this machine: 127.0.0.1 alone is fine
+    if (!HOST && host === "::1" && (e.code === "EADDRNOTAVAIL" || e.code === "EAFNOSUPPORT")) return;
+    console.error(`Agent server failed to listen on ${host}:${s.port}: ${e.message}`);
+    process.exit(1);
+  });
+}

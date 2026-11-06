@@ -50,7 +50,7 @@ export function Footer() {
           <div className="max-w-[282px]">
             <LeashWordmark />
             <div className="mt-6 border-t border-white/10 pt-6 text-[18px] leading-[27px] text-white/60">The agent can ask. Only the owner can authorize.</div>
-            <div className="mt-6 text-[14px] text-white/40">© 2026 Leash · MIT · Devnet only</div>
+            <div className="mt-6 text-[14px] text-white/60">© 2026 Leash · MIT · Devnet only</div>
           </div>
           <div className="grid gap-12 sm:grid-cols-[auto_auto_358px] sm:gap-[90px]">
             {COLS.map((c) => (

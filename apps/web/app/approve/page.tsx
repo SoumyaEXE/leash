@@ -10,7 +10,7 @@ export default function ApprovePage() {
   return (
     <WalletShell>
       <Nav />
-      <main className="relative overflow-hidden pt-[150px]">
+      <main id="main" tabIndex={-1} className="relative overflow-hidden pt-[150px]">
         <div
           aria-hidden
           className="pointer-events-none absolute left-1/2 top-[-420px] h-[760px] w-[1000px] -translate-x-1/2 rounded-full opacity-70 blur-[120px]"

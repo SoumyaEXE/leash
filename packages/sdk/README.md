@@ -87,6 +87,18 @@ if (r.ok) console.log("mandate", r.mandate.toBase58(), r.explorerUrl);
 
 Error names match `programs/leash/src/errors.rs` (codes 6000-6032); see `src/errors.ts`.
 
+Security notes (details and open items in the root `SECURITY.md`):
+
+- `reason` is published in plaintext as an SPL Memo (`leash:reason:…`, max 180 chars), even on refused payments.
+  Only its sha256 is used by the program. Don't put secrets in it.
+- Off-chain checks here are UX: the program re-checks everything. `resolveAuthorization` picks the payee entry if it
+  fits the amount, else a live mandate that fits (soonest expiry first); exhausted, revoked and expired mandates are
+  skipped.
+- The activity feed counts a failure as "blocked" only when the runtime reports a Leash error on a top-level Leash
+  payment instruction whose vault account is this vault, and it reads events only from the Leash frame for this
+  vault. A forged log line, or another program returning the same code, is ignored. Reason text is still written by
+  the agent, so show it as untrusted.
+
 ## Tests
 
 ```

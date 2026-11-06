@@ -72,7 +72,14 @@ export function ApproveClient() {
   };
 
   if (!request && !vault) {
-    return <p className="cx-body text-white/70">Open this page from a pending request (needs ?request=&lt;address&gt;).</p>;
+    return (
+      <div className="mx-auto max-w-[560px] text-center">
+        <h1 className="cx-h3">Approve a Request</h1>
+        <p className="cx-body mt-3 text-white/75">
+          Open this page from a pending co-sign request: the demo, the vault dashboard and the Blink all link here with <span className="font-mono text-[16px]">?request=&lt;address&gt;</span>.
+        </p>
+      </div>
+    );
   }
 
   return (
@@ -80,17 +87,21 @@ export function ApproveClient() {
       <div className="cx-border cx-card overflow-hidden rounded-[24px]" style={{ ["--cx-angle" as string]: "130deg" }}>
         {meta?.icon && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={meta.icon} alt="" className="aspect-square w-full object-cover" />
+          <img src={meta.icon} alt="" aria-hidden className="aspect-square w-full object-cover" />
         )}
         <div className="p-7">
           <span className="cx-badge cx-border !h-9 !px-4 !text-[14px]">Solana Action · devnet</span>
           <h1 className="cx-h3 mt-5">{meta?.title ?? (err ? "Couldn't load this action" : "Loading…")}</h1>
           {meta?.description && <p className="cx-small mt-3">{meta.description}</p>}
           {meta?.error && <p className="mt-3 text-[15px] text-[#f5c86a]">{meta.error.message}</p>}
-          {err && <p className="mt-3 text-[15px] text-[#ffb0a6]">{err}</p>}
+          {err && (
+            <p role="alert" className="mt-3 text-[15px] text-[#ffb0a6]">
+              {err}
+            </p>
+          )}
 
           {done ? (
-            <div className="mt-6 rounded-[16px] border border-[#0cbe4d]/40 bg-[#0cbe4d]/[0.07] p-4">
+            <div role="status" className="mt-6 rounded-[16px] border border-[#0cbe4d]/40 bg-[#0cbe4d]/[0.07] p-4">
               <div className="text-[16px] text-[#8ee8ae]">{done.message ?? "Done."}</div>
               <ExtLink href={explorerTxUrl(done.sig)} className="mt-3">
                 View transaction

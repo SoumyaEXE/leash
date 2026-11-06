@@ -1,7 +1,13 @@
 import type { TokenBalance, VersionedTransactionResponse } from "@solana/web3.js";
 import { connection } from "../config";
 
-export type Verdict = { ok: true; payer?: string; detail: string } | { ok: false; reason: string; retryable?: boolean };
+/**
+ * ok: the payment is real. `payer` is reported in PAYMENT-RESPONSE; `authority` is the key that must have signed the
+ * payer authorization (payer-auth.ts), read from chain by the verifier.
+ */
+export type Verdict =
+  | { ok: true; payer?: string; authority?: string; detail: string }
+  | { ok: false; reason: string; retryable?: boolean };
 
 export async function fetchTx(sig: string): Promise<VersionedTransactionResponse | null> {
   return connection().getTransaction(sig, { commitment: "confirmed", maxSupportedTransactionVersion: 0 });

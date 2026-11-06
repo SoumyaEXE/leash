@@ -1,13 +1,23 @@
 import { PublicKey } from "@solana/web3.js";
-import { fromBaseUnits, type RequestState } from "@leash/sdk";
+import { fromBaseUnits, reasonHash, toHex, type RequestState } from "@leash/sdk";
 import { actionError, actionJson, actionOptions, origin, serializeUnsigned } from "@/lib/actions";
 import { isMock } from "@/lib/leash";
 import { serverLeashClient } from "@/lib/leash-server";
+import { shortAddress, untrustedText } from "../../_lib/untrusted-text";
+
+/** Max characters of the agent's reason shown in the Blink. */
+const REASON_MAX = 140;
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function load(req: Request): Promise<{ request: RequestState; label: string; reason?: string } | Response> {
+/**
+ * Everything the owner is asked to sign comes from chain state: amount, payee and expiry from the SpendRequest
+ * account, the payee's label from the vault's own Payee account (written by the owner). The agent's reason is the
+ * only agent-written text: it is read from the request tx's memo, flattened by untrustedText(), capped, quoted and
+ * labeled as the agent's words, and flagged when it doesn't match the reason hash stored in the request.
+ */
+async function load(req: Request): Promise<{ request: RequestState; payeeName: string; reason?: string } | Response> {
   const u = new URL(req.url);
   const id = u.searchParams.get("request");
   if (!id) return actionError("Missing ?request=<spend request address>");
@@ -21,16 +31,25 @@ async function load(req: Request): Promise<{ request: RequestState; label: strin
   const request = await client.getRequest(pda);
   if (!request) return actionError("Spend request not found", 404);
   const payees = await client.listPayees(request.vault).catch(() => []);
-  const label = payees.find((p) => p.payee.equals(request.payee))?.label ?? `${request.payee.toBase58().slice(0, 4)}…${request.payee.toBase58().slice(-4)}`;
+  const payee = request.payee.toBase58();
+  const label = untrustedText(payees.find((p) => p.payee.equals(request.payee) && p.vault.equals(request.vault))?.label, 32);
+  // label (owner-set) + the address itself, so a misleading label can't hide where the money goes
+  const payeeName = label ? `${label} (${shortAddress(payee)})` : shortAddress(payee);
   const recent = await client.recentActivity(request.vault, 100).catch(() => []);
-  const reason = recent.find((e) => e.kind === "requested" && e.request === pda.toBase58())?.reason;
-  return { request, label, reason };
+  const raw = recent.find((e) => e.kind === "requested" && e.request === pda.toBase58())?.reason;
+  let reason: string | undefined;
+  if (raw) {
+    const text = untrustedText(raw, REASON_MAX);
+    const matches = toHex(reasonHash(raw)) === toHex(request.reasonHash);
+    reason = `Agent's note (written by the agent, not verified): “${text}”${matches ? "" : " [does not match the request's onchain reason hash]"}. `;
+  }
+  return { request, payeeName, reason };
 }
 
 export async function GET(req: Request) {
   const r = await load(req);
   if (r instanceof Response) return r;
-  const { request, label, reason } = r;
+  const { request, payeeName, reason } = r;
   const amount = fromBaseUnits(request.amount);
   const base = origin(req);
   const q = `request=${request.address.toBase58()}`;
@@ -38,8 +57,11 @@ export async function GET(req: Request) {
   return actionJson({
     type: "action",
     icon: `${base}/blink-icon.svg`,
-    title: `Approve ${amount} dUSDC to ${label}?`,
-    description: `${reason ? `Agent's reason: ${reason}. ` : ""}Leash co-sign request #${request.seq.toString()} · expires ${new Date(request.expiresAt * 1000).toUTCString()}. Signing runs approve_request on the Leash program (devnet).`,
+    title: `Approve ${amount} dUSDC to ${payeeName}?`,
+    description:
+      `Pays ${amount} dUSDC from vault ${shortAddress(request.vault.toBase58())} to ${request.payee.toBase58()} (amount and payee read from the onchain request). ` +
+      (reason ?? "") +
+      `Leash co-sign request #${request.seq.toString()} · expires ${new Date(request.expiresAt * 1000).toUTCString()}. Signing runs approve_request on the Leash program (devnet).`,
     label: "Approve",
     disabled: !pending,
     ...(pending ? {} : { error: { message: `This request is already ${request.status}.` } }),
@@ -55,7 +77,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const r = await load(req);
   if (r instanceof Response) return r;
-  const { request, label } = r;
+  const { request, payeeName } = r;
   let account: PublicKey;
   try {
     const body = (await req.json()) as { account?: string };
@@ -76,7 +98,7 @@ export async function POST(req: Request) {
   return actionJson({
     type: "transaction",
     transaction: serializeUnsigned(tx),
-    message: decision === "approveRequest" ? `Approved ${fromBaseUnits(request.amount)} dUSDC to ${label}.` : "Request rejected.",
+    message: decision === "approveRequest" ? `Approved ${fromBaseUnits(request.amount)} dUSDC to ${payeeName}.` : "Request rejected.",
   });
 }
 

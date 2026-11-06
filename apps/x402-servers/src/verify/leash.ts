@@ -1,13 +1,75 @@
 /**
  * Option 2 (docs/05): custom "leash" scheme. The agent paid through the Leash program (agent_spend, or the owner's
  * approve_request for co-signed amounts) and sends us the tx signature. We verify from the chain:
- *   tx confirmed & succeeded → invoked LEASH_PROGRAM_ID → SpendExecuted{payee == payTo, amount >= required,
- *   memo == nonce} → payTo's token balance really went up → nonce unused & unexpired, signature never reused.
+ *   tx confirmed & succeeded → invoked LEASH_PROGRAM_ID → payTo's token balance really went up → a SpendExecuted
+ *   event (emitted inside the Leash frame) with payee == payTo, amount >= required, and either
+ *     - memo == nonce: agent_spend / guarded_spend, and approve_request too (the deployed program copies the
+ *       request's memo into SpendExecuted; verified on devnet Nov 6), or
+ *     - fallback for a memo-less co-signed event: via == request and the named SpendRequest account (owned by
+ *       the program, referenced by this tx) is approved, for this payee/amount, with memo == nonce.
+ * The returned `authority` is the vault's agent key read from chain: the paywall requires the payer
+ * authorization (payer-auth.ts) to be signed by it.
  */
-import { cfg } from "../config";
-import { spendExecutedEvents } from "../events";
+import { PublicKey, type VersionedTransactionResponse } from "@solana/web3.js";
+import { decodeRequest, decodeVault, toHex } from "@leash/sdk";
+import { cfg, connection } from "../config";
+import { type SpendExecutedEvent, spendExecutedEvents } from "../events";
 import type { IssuedTerms } from "../nonces";
 import { type Verdict, fetchTx, tokenDelta } from "./tx";
+
+/** Read a Leash-owned account; null when missing or owned by another program. */
+async function leashAccount(address: PublicKey): Promise<Buffer | null> {
+  const info = await connection().getAccountInfo(address, "confirmed");
+  if (!info || !cfg.programId || !info.owner.equals(cfg.programId)) return null;
+  return info.data;
+}
+
+/** The vault's current agent key, read from chain. */
+export async function vaultAgent(vault: string): Promise<string | null> {
+  try {
+    const data = await leashAccount(new PublicKey(vault));
+    return data ? decodeVault(data).agent.toBase58() : null;
+  } catch {
+    return null;
+  }
+}
+
+function txAccountKeys(tx: VersionedTransactionResponse): string[] {
+  const msg = tx.transaction.message;
+  const loaded = tx.meta?.loadedAddresses;
+  return [...msg.staticAccountKeys, ...(loaded?.writable ?? []), ...(loaded?.readonly ?? [])].map((k) => k.toBase58());
+}
+
+async function matchCosigned(
+  tx: VersionedTransactionResponse,
+  events: SpendExecutedEvent[],
+  requestStr: string,
+  terms: IssuedTerms,
+): Promise<SpendExecutedEvent | string> {
+  let request: PublicKey;
+  try {
+    request = new PublicKey(requestStr);
+  } catch {
+    return "Invalid request address";
+  }
+  if (!txAccountKeys(tx).includes(request.toBase58())) return "Transaction does not reference the named spend request";
+  const data = await leashAccount(request);
+  if (!data) return "Spend request account not found (or not a Leash account)";
+  let r: ReturnType<typeof decodeRequest>;
+  try {
+    r = decodeRequest(request, data);
+  } catch {
+    return "Not a Leash spend request";
+  }
+  if (r.status !== "approved") return `Spend request is ${r.status}, not approved`;
+  if (r.payee.toBase58() !== terms.payTo) return "Spend request pays a different payee";
+  if (r.amount < terms.amount) return "Spend request amount is below the price";
+  if (!r.memo || toHex(r.memo) !== terms.nonce.toLowerCase()) return "Spend request memo does not match this payment nonce";
+  const ev = events.find(
+    (e) => e.via === "request" && e.vault === r.vault.toBase58() && e.payee === terms.payTo && e.amount === r.amount,
+  );
+  return ev ?? "No co-signed SpendExecuted event for this request";
+}
 
 export async function verifyLeashPayment(sig: string, terms: IssuedTerms, opts: { request?: string } = {}): Promise<Verdict> {
   if (!cfg.programId) return { ok: false, reason: "Server misconfigured: LEASH_PROGRAM_ID not set" };
@@ -23,19 +85,19 @@ export async function verifyLeashPayment(sig: string, terms: IssuedTerms, opts: 
 
   if (tx.blockTime && tx.blockTime < terms.issuedAt - 5) return { ok: false, reason: "Payment predates these payment terms" };
 
-  const events = spendExecutedEvents(logs);
-  if (events === null) {
-    // TODO: decoder not shipped by @leash/sdk yet: we verified program + balance delta + freshness + unused sig.
-    return { ok: true, detail: "verified: Leash program invoked, payTo balance delta (event decoder pending)" };
-  }
+  const events = spendExecutedEvents(logs) ?? [];
   const nonceHex = terms.nonce.toLowerCase();
-  const match = events.find((e) => {
-    if (e.payee !== terms.payTo || e.amount < terms.amount) return false;
-    if (e.memo) return Buffer.from(e.memo).toString("hex") === nonceHex;
-    // Co-signed spends (approve_request) carry no memo: accept only when the client names the request and the
-    // event says it was released via an owner-approved request.
-    return !!opts.request && e.via === "request";
-  });
+  let match: SpendExecutedEvent | undefined = events.find(
+    (e) => e.payee === terms.payTo && e.amount >= terms.amount && !!e.memo && Buffer.from(e.memo).toString("hex") === nonceHex,
+  );
+  if (!match && opts.request) {
+    const m = await matchCosigned(tx, events, opts.request, terms);
+    if (typeof m === "string") return { ok: false, reason: m };
+    match = m;
+  }
   if (!match) return { ok: false, reason: "No SpendExecuted event matches payTo / amount / nonce" };
-  return { ok: true, payer: match.vault, detail: `verified SpendExecuted via ${match.via || "?"}` };
+
+  const agent = await vaultAgent(match.vault);
+  if (!agent) return { ok: false, reason: "Couldn't read the paying vault from chain", retryable: true };
+  return { ok: true, payer: match.vault, authority: agent, detail: `verified SpendExecuted via ${match.via || "?"}` };
 }

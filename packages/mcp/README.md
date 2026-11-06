@@ -34,5 +34,17 @@ Claude Desktop (`claude_desktop_config.json`):
 | `leash_request` | Explicit owner approval request (returns the Blink / Action URL) |
 | `leash_pay_for_resource` | x402 v2: fetch → 402 → pay via Leash (`leash` scheme) → retry with `PAYMENT-SIGNATURE` |
 
+Project-scoped config: `.mcp.example.json` at the repo root attaches this server. Copy it to `.mcp.json`; the path
+is relative to the repo root. The server reads the repo `.env` itself, so the `env` block can stay empty.
+
+Tests against devnet (build first):
+
+```bash
+pnpm --filter @leash/mcp test:smoke   # list tools, read the balance, pay the attacker (refused), pay an x402 API
+pnpm --filter @leash/mcp test:lure [docs-url]   # read the lure from a /lab docs page, send that exact leash_pay
+```
+
+The A1 lab in `apps/agent/README.md` runs Claude Code headless with this server against poisoned API docs.
+
 Refused payments are **returned**, not thrown: `{ status: "blocked_onchain", error: "PayeeNotAuthorized", why, explorer }`.
 The agent key holds only fee SOL; losing it lets an attacker *request* payments, which the vault policy still governs.

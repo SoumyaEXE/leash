@@ -14,5 +14,7 @@ export async function verifyTransferPayment(sig: string, terms: IssuedTerms): Pr
   const delta = tokenDelta(tx, terms.payTo, terms.asset);
   if (delta < terms.amount) return { ok: false, reason: `payTo received ${delta}, required ${terms.amount}` };
   if (tx.blockTime && tx.blockTime < terms.issuedAt - 5) return { ok: false, reason: "Payment predates these payment terms" };
-  return { ok: true, payer: debitedOwner(tx, terms.asset), detail: "verified plain transfer + memo" };
+  const payer = debitedOwner(tx, terms.asset);
+  if (!payer) return { ok: false, reason: "Couldn't tell which wallet paid" };
+  return { ok: true, payer, authority: payer, detail: "verified plain transfer + memo" };
 }
