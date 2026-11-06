@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typescript:
+    name: TypeScript (typecheck + SDK tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm version comes from "packageManager" in package.json
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck every package
+        run: pnpm -r typecheck
+
+      - name: SDK tests (IDL conformance, mandate vectors, activity, client)
+        run: pnpm --filter @leash/sdk test
+
+  program:
+    name: Program (anchor build --arch v0 + LiteSVM tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # Same toolchain as NOTES.md "Build + deploy": Anchor CLI 1.2.2 (avm), Agave CLI 3.1.10.
+      ANCHOR_VERSION: 1.2.2
+      AGAVE_VERSION: v3.1.10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: System packages
+        run: sudo apt-get update && sudo apt-get install -y pkg-config build-essential libudev-dev libssl-dev
+
+      # rust-toolchain.toml pins channel = "stable" (LiteSVM 0.15 needs rustc >= 1.98)
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-bin: "false"
+
+      - name: Cache Agave CLI, platform tools and Anchor
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/solana
+            ~/.cache/solana
+            ~/.avm
+            ~/.cargo/bin/avm
+            ~/.cargo/bin/anchor
+          key: solana-${{ runner.os }}-agave-${{ env.AGAVE_VERSION }}-anchor-${{ env.ANCHOR_VERSION }}
+
+      - name: Install Agave CLI ${{ env.AGAVE_VERSION }}
+        run: |
+          if [ ! -x "$HOME/.local/share/solana/install/active_release/bin/solana" ]; then
+            sh -c "$(curl -sSfL https://release.anza.xyz/${AGAVE_VERSION}/install)"
+          fi
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+
+      - name: Install Anchor ${{ env.ANCHOR_VERSION }} (avm)
+        run: |
+          if ! command -v avm >/dev/null || ! command -v anchor >/dev/null; then
+            cargo install --git https://github.com/otter-sec/anchor avm --force
+          fi
+          if [ ! -e "$HOME/.avm/bin/anchor-${ANCHOR_VERSION}" ]; then
+            avm install "$ANCHOR_VERSION"
+          fi
+          avm use "$ANCHOR_VERSION"
+
+      - name: Versions
+        run: |
+          rustc --version
+          solana --version
+          anchor --version
+
+      # devnet has not activated sBPFv3 (feature BUwGLeF3...), so the program is built and tested as sBPFv0.
+      - name: anchor build --arch v0
+        run: anchor build --arch v0
+
+      - name: Committed IDL matches the program (the SDK conformance tests read it)
+        run: |
+          git diff --exit-code -- target/idl/leash.json target/types/leash.ts \
+            || { echo "::error::target/idl or target/types is stale: run anchor build and commit"; exit 1; }
+          cmp target/idl/leash.json packages/sdk/src/idl/leash.json \
+            || { echo "::error::packages/sdk/src/idl/leash.json is stale: run pnpm sdk:sync-idl"; exit 1; }
+          cmp target/types/leash.ts packages/sdk/src/idl/leash.ts \
+            || { echo "::error::packages/sdk/src/idl/leash.ts is stale: run pnpm sdk:sync-idl"; exit 1; }
+
+      # The LiteSVM suite loads target/deploy/leash.so built above.
+      - name: cargo test -p leash
+        run: cargo test -p leash
