@@ -7,6 +7,7 @@ Demo agents for Leash, plus the lab where a real tool-calling agent (Claude Code
 | `pnpm --filter agent dev` | Agent server on :4020 (`/run`, `/reset`) used by the web demo |
 | `pnpm --filter agent demo:victim` / `demo:leashed` / `demo:split` | Scripted scenarios: the same model and pipeline with an unprotected wallet or a Leash vault |
 | `pnpm --filter agent lab <cmd>` | The A1 lab below: `status`, `config`, `run`, `report`, `verify` |
+| `pnpm --filter agent v12` | V12 replay: pinned `@x402/fetch` 2.22.0 vs current 2.30.0 (capped) vs Leash, against a hostile 402 server |
 
 ## Lab: a real agent reads poisoned API docs
 
@@ -111,3 +112,44 @@ What this shows, stated plainly:
   reference for payments.
 - **The clean path works.** Every run paid the real allowlisted x402 API through `leash_pay_for_resource`, and the
   payment was read back as `SpendExecuted` from devnet.
+
+## V12 replay: the real pre-fix client, the current capped client, and Leash
+
+V12 disclosed 25 x402 SDK findings on Oct 22, 2026. One of the 3 critical ones: before Aug 18 the default client had
+no spending limit and paid the first option a 402 listed, so a hostile API could ask for the wallet's whole balance.
+`@x402/fetch` 2.23.0 (Aug 18) added `spendControls`: recognized stablecoins only, $1 per payment by default. That
+cap stops the full-balance ask. It does not stop a $0.99 loop.
+
+`src/v12-replay.ts` runs the real packages, pinned side by side through npm aliases (`npm view @x402/fetch versions`
+lists 2.22.0, published Aug 11, and 2.30.0, the current release). All three clients hit one hostile x402 v2 server
+the script starts on its own port (4310 by default):
+
+| Client | Package |
+|---|---|
+| legacy | `x402-fetch-2-22` = `@x402/fetch@2.22.0` + `@x402/svm@2.22.0` (`exact` scheme, pays from the victim hot wallet) |
+| capped | `@x402/fetch@2.30.0` + `@x402/svm@2.30.0` with `spendControls` (devnet dUSDC opted in at the $1 default cap) |
+| leash | the demo's leashed agent (`payForResource` + `LeashedWallet`, scheme `leash`, pays from the vault) |
+
+```bash
+pnpm --filter agent v12 --loop 5            # needs keys/victim.json, keys/attacker.json (fee payer), LEASH_VAULT
+pnpm --filter agent v12 --only leash        # just the vault (moves no tokens: every attempt is refused)
+curl -X POST http://localhost:4020/reset    # the legacy client empties the victim wallet; this refunds it
+```
+
+Results (Nov 6, 2026, devnet; full table and every tx link in [`lab-runs/v12-replay.md`](lab-runs/v12-replay.md)):
+
+| | 0.99/call loop ×5 → attacker | Hostile 402: whole balance → attacker |
+|---|---|---|
+| `@x402/fetch` 2.22.0 | paid 5/5 | **paid 990.1 dUSDC** ([tx](https://explorer.solana.com/tx/2VDbBnxfiaL9BtTCxmcRThj56Qxdz4nkBkHKMgiJov1KmwZbW6z1DgmALrSL4WxVtrNj2ZjRQMW4Zm4NQtCngZVk?cluster=devnet)) |
+| `@x402/fetch` 2.30.0, $1 cap | **paid 5/5** | refused by spendControls before signing |
+| Leash | **PayeeNotAuthorized** at call 1 ([tx](https://explorer.solana.com/tx/55k379hsT5quzfimMKQhtRzWyC1wjEhyH4CkwuokiTd8kALU9EmDn7fXsMvcmU3XfJidQDYGY53gcd7gRAJ3JHTz?cluster=devnet)) | **PayeeNotAuthorized** ([tx](https://explorer.solana.com/tx/3bV7Wm1p1QacRZvpBEtSiUhLGR4SpfoN21gAr5vFLdi6JZS2zRq49GQvjU43RLpkNPLTAteg7QEkzD1bXnuNjKgE?cluster=devnet)) |
+
+If an allowlisted API turns hostile (the same 0.99 loop, `payTo` = the approved Market Data payee), Leash stops it
+at call 1 with **ExceedsPayeePerTx**, because the payee's per-payment max is 0.50
+([tx](https://explorer.solana.com/tx/2VokdgwLVtenwnYW4T8LP4Npq9yyiqQHzanUuHXXkh8fUMXgwYqB4vWexkBtG6XChz2841ZU4YfNSWehbah8y1Gj?cluster=devnet)).
+Cheaper loops end at the payee budget (`PayeeBudgetExceeded`) or the 24h cap (`ExceedsDailyCap`). Both errors are
+covered by the LiteSVM tests. We did not run that loop live, because it would use up the shared demo vault's 24h
+window.
+
+With default `spendControls`, 2.30.0 refuses devnet dUSDC outright, since the SDK doesn't recognize it. That would
+block legitimate payments too, so the capped client opts dUSDC in with the same $1 cap the default applies to USDC.
