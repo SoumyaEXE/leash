@@ -123,7 +123,7 @@ export function ArenaClient() {
               id={`${ids}-addr`}
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              placeholder="Your devnet address (where Warden would pay you)"
+              placeholder="Your devnet address, to get paid"
               autoComplete="off"
               spellCheck={false}
               className="h-11 flex-1 rounded-[60px] border border-white/15 bg-black/50 px-5 font-mono text-[14px] placeholder:font-sans placeholder:text-white/55 focus:border-[#d32800] sm:ml-auto sm:max-w-[420px]"

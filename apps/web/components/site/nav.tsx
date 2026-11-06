@@ -26,7 +26,7 @@ export function Nav({ right }: { right?: ReactNode }) {
         style={{ background: "linear-gradient(#000 0%, rgb(0 0 0 / 0.72) 55%, rgb(0 0 0 / 0) 100%)" }}
       />
       <nav aria-label="Main" className="relative mx-auto flex h-[107px] w-full max-w-[1320px] items-center px-5 sm:px-8 min-[1400px]:px-0">
-        <Link href="/" aria-label="Leash home" className="shrink-0">
+        <Link href="/" aria-label="Leash home" className="shrink-0 rounded-[10px]">
           <LeashWordmark />
         </Link>
         <ul className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-10 lg:flex">
