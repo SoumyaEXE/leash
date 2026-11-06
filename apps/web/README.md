@@ -9,13 +9,14 @@ pnpm --filter web build
 
 | Route | What |
 |---|---|
-| `/` | Landing: incidents with sources, the seven policy layers, the three owner-signed release paths, prior work |
+| `/` | Landing: what the program enforces, the seven policy checks, real incidents and their replays, integrations (SDK, MCP, Agent Kit), FAQ |
 | `/demo` | Split-screen attack replay (Morse-code trap, poisoned memory, hostile paywall, legit purchases). Talks to the agent server (`NEXT_PUBLIC_AGENT_SERVER_URL`: `GET /balances`, `POST /run-split`, `POST /reset`). `/demo?mock=1` uses canned data for UI work and backup recordings. |
 | `/vault` | Owner dashboard: balance, caps, 24h meter, kill switch, tripwire strikes, payees, mandates (owner tx or off-chain `signMessage`), pending co-sign requests, live activity |
 | `/arena` | Red Team Arena: chat with Warden (You.com Answer API), scoreboard, recent attempts |
 | `/approve?request=<pda>` | Our own Blink renderer for the approve/reject Action (Phantom signs the same tx dial.to would get) |
 | `/api/actions/approve`, `/api/actions/unfreeze`, `/actions.json` | Solana Actions (GET metadata, POST `{ account }` → base64 tx, OPTIONS), with CORS, `X-Action-Version: 2.4`, `X-Blockchain-Ids` (devnet CAIP-2) |
-| `/api/arena/chat`, `/api/arena/state` | Arena backend: rate limits (10 msgs / 10 min per IP and per address), 280-char cap, `ARENA_ENABLED` kill switch, attempts in `apps/web/data/arena.json` (gitignored) |
+| `/api/arena/chat`, `/api/arena/state` | Arena backend: rate limits (10 msgs / 10 min per IP and per address, in memory per server process), 280-char cap, `ARENA_ENABLED` kill switch, attempts in `apps/web/data/arena.json` (gitignored) |
+| `/api/rpc` | JSON-RPC proxy: forwards an allowlist of methods to `SOLANA_RPC_URL`, so a Helius key never reaches the browser (used when `NEXT_PUBLIC_SOLANA_RPC_URL=proxy`, the default). No rate limit yet; see `SECURITY.md` |
 
 ## Mock vs real program
 
@@ -36,7 +37,8 @@ strike. The model gets fooled; the vault holds.
 
 ## Design
 
-Visual style inspired by [nestjs.com](https://github.com/nestjs/nestjs.com) (MIT). Theme tokens in
-`app/globals.css` (Manrope + Geist Mono, `#050303`, `#ea2845`, keyframes) follow nestjs.com's `app/index.css`
-(MIT, © Kamil Myśliwiec). Every component here is our own code, rebuilt from captures of the live site; no NestJS
-logo, name or copy is used. Capture evidence and the motion spec live in `.reanimate/nestjs/` (gitignored).
+Layout and visual style adapted from the free Framer template [Cryonix](https://cryonix.framer.website/) by Pixcut
+Studio LLC. Theme tokens live in `app/globals.css` (Manrope + Geist Mono, `#000` page, brand `#d32800`); the
+decorative flares and illustrations in `public/cx/` come from the template (`public/cx/CREDITS.txt`). The components,
+the phone and dashboard mockups and all copy are our own code. Logos in `public/logos/` belong to their owners; see
+the root README's design credits.
