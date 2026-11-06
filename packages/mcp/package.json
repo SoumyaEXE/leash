@@ -4,13 +4,16 @@
   "description": "MCP server: give any MCP agent (Claude Code, Claude Desktop, ...) a leashed Solana wallet",
   "license": "MIT",
   "type": "module",
-  "bin": { "leash-mcp": "./dist/index.js" },
+  "bin": {
+    "leash-mcp": "./dist/index.js"
+  },
   "main": "./dist/index.js",
   "scripts": {
     "build": "tsup",
     "dev": "tsx src/index.ts",
     "test:smoke": "tsx test/smoke.ts",
-    "typecheck": "tsc --noEmit -p ."
+    "typecheck": "tsc --noEmit -p .",
+    "test:lure": "tsx test/lure.ts"
   },
   "dependencies": {
     "@leash/sdk": "workspace:*",
