@@ -50,16 +50,29 @@ NOTES.md                 Deviations from the specs, decisions, spike results
 
 ## Commands (keep this section updated as scripts are added)
 ```
-anchor build --arch v0            # build program (v0: devnet has no sBPFv3 yet), regenerate IDL + types
-cargo test -p leash               # Rust LiteSVM program tests (template from anchor init)
-anchor test                       # full test run (Surfpool by default; --validator legacy for test-validator)
-anchor deploy --provider.cluster devnet
-pnpm -r build                     # build all TS packages
-pnpm --filter web dev             # dashboard on :3000
-pnpm --filter agent demo:victim   # run unprotected agent
-pnpm --filter agent demo:leashed  # run Leash-protected agent
+# program (run in the Codespace: gh codespace ssh -c leash-chain-67jq4qr4x9j34xg4)
+anchor build --arch v0            # sBPFv0: devnet has no sBPFv3 yet; regenerates target/idl + target/types
+cargo test -p leash               # 45 Rust LiteSVM tests
+solana program deploy target/deploy/leash.so --program-id keys/leash-program.json --url devnet
+pnpm sdk:sync-idl                 # copy IDL + types into packages/sdk/src/idl
+
+# devnet state
+pnpm --filter scripts keys        # keypairs in keys/ (gitignored), addresses into .env
+pnpm --filter scripts balances    # SOL balances, who needs funding
+pnpm setup:devnet                 # dUSDC mint, wallets, vaults 1/2/3, payees (idempotent)
+pnpm reset:demo                   # restore seeded demo state (~15 s)
+
+# apps
 pnpm --filter x402-servers dev    # paid demo APIs on :4021
-pnpm tsx scripts/setup-devnet.ts  # mint dUSDC, init vault, seed allowlist
+pnpm --filter agent dev           # demo runner HTTP on :4020 (/balances /run /run-split /reset)
+pnpm --filter web dev             # dashboard on :3000 (/demo /vault /arena)
+pnpm --filter agent demo:split -- --scenario s1   # also: demo:victim, demo:leashed, s2 s4 s5
+
+# tests / checks
+pnpm --filter @leash/sdk test      # SDK layouts vs IDL (58 checks)
+pnpm --filter @leash/mcp build && pnpm --filter @leash/mcp test:smoke   # MCP over stdio on devnet
+pnpm --filter @leash/plugin-sak example   # SAK plugin: legit pay + blocked injection
+pnpm -r typecheck
 ```
 
 ## Rules

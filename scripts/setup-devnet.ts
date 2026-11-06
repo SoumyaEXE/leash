@@ -37,7 +37,9 @@ const victim = loadKeypair("victim");
 const attacker = loadKeypair("attacker");
 const merchant = loadKeypair("merchant");
 const research = loadKeypair("research");
-const programId = loadKeypair("leash-program").publicKey;
+const programId = process.env.LEASH_PROGRAM_ID?.trim()
+  ? new PublicKey(process.env.LEASH_PROGRAM_ID.trim())
+  : loadKeypair("leash-program").publicKey;
 
 const log = (s: string) => console.log(s);
 
