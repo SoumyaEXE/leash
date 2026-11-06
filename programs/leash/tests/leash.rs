@@ -128,7 +128,7 @@ fn request_then_reject() {
     let mut env = setup(demo_policy());
     let ix = ix_request(&env, env.merchant, Auth::Payee(env.merchant), ONE / 4);
     assert_ok(&agent_send(&mut env, &[ix]));
-    assert_ok(&owner_send(&mut env, &[ix_reject(&env, 0)]));
+    assert_ok(&{ let ixs = [ix_reject(&env, 0)]; owner_send(&mut env, &ixs) });
     assert_eq!(request(&env, 0).status, RequestStatus::Rejected);
     assert_eq!(token_balance(&env.svm, &env.merchant_ata), 0);
 }
@@ -137,7 +137,7 @@ fn request_then_reject() {
 fn withdraw_to_owner() {
     let mut env = setup(demo_policy());
     let before = token_balance(&env.svm, &env.owner_ata);
-    assert_ok(&owner_send(&mut env, &[ix_withdraw(&env, 100 * ONE)]));
+    assert_ok(&{ let ixs = [ix_withdraw(&env, 100 * ONE)]; owner_send(&mut env, &ixs) });
     assert_eq!(token_balance(&env.svm, &env.owner_ata), before + 100 * ONE);
     assert_eq!(token_balance(&env.svm, &env.vault_ata), 900 * ONE);
 }
@@ -166,7 +166,7 @@ fn owner_can_update_policy_and_payee_and_rotate_agent() {
     assert_ok(&owner_send(&mut env, &[ix]));
     assert_eq!(vault(&env).per_tx_cap, 2 * ONE);
 
-    assert_ok(&owner_send(&mut env, &[ix_update_payee(&env, env.merchant, ONE, 0, false)]));
+    assert_ok(&{ let ixs = [ix_update_payee(&env, env.merchant, ONE, 0, false)]; owner_send(&mut env, &ixs) });
     let p = payee(&env, &env.merchant);
     assert_eq!(p.per_tx_max, ONE);
     assert!(!p.active);
@@ -218,7 +218,7 @@ fn err_recipient_mismatch() {
 #[test]
 fn err_inactive_payee_is_not_authorized() {
     let mut env = setup(demo_policy());
-    assert_ok(&owner_send(&mut env, &[ix_update_payee(&env, env.merchant, ONE / 2, 5 * ONE, false)]));
+    assert_ok(&{ let ixs = [ix_update_payee(&env, env.merchant, ONE / 2, 5 * ONE, false)]; owner_send(&mut env, &ixs) });
     let ix = ix_spend(&env, &env.agent.pubkey(), env.merchant_ata, Auth::Payee(env.merchant), ONE / 20, false);
     assert_leash_err(&agent_send(&mut env, &[ix]), LeashError::PayeeNotAuthorized);
 }
@@ -233,7 +233,7 @@ fn err_exceeds_payee_per_tx() {
 #[test]
 fn err_payee_budget_exceeded() {
     let mut env = setup(no_cosign());
-    assert_ok(&owner_send(&mut env, &[ix_update_payee(&env, env.merchant, ONE / 2, ONE, true)]));
+    assert_ok(&{ let ixs = [ix_update_payee(&env, env.merchant, ONE / 2, ONE, true)]; owner_send(&mut env, &ixs) });
     for _ in 0..2 {
         let ix = ix_spend(&env, &env.agent.pubkey(), env.merchant_ata, Auth::Payee(env.merchant), ONE / 2, false);
         assert_ok(&agent_send(&mut env, &[ix]));
@@ -264,7 +264,7 @@ fn err_mandate_expired() {
 #[test]
 fn err_mandate_revoked() {
     let (mut env, to) = env_with_mandate(ONE, ONE / 2, 3600);
-    assert_ok(&owner_send(&mut env, &[ix_revoke_mandate(&env, 0)]));
+    assert_ok(&{ let ixs = [ix_revoke_mandate(&env, 0)]; owner_send(&mut env, &ixs) });
     let ix = ix_spend(&env, &env.agent.pubkey(), to, Auth::Mandate(0), ONE / 10, false);
     assert_leash_err(&agent_send(&mut env, &[ix]), LeashError::MandateRevoked);
 }
@@ -298,7 +298,7 @@ fn err_exceeds_per_tx_cap() {
     let big = Pubkey::new_unique();
     let big_ata = ata(&big, &env.mint);
     set_token_account(&mut env.svm, big_ata, &env.mint, &big, 0);
-    assert_ok(&owner_send(&mut env, &[ix_add_payee(&env, big, "Big Spender", 10 * ONE, 0)]));
+    assert_ok(&{ let ixs = [ix_add_payee(&env, big, "Big Spender", 10 * ONE, 0)]; owner_send(&mut env, &ixs) });
     let ix = ix_spend(&env, &env.agent.pubkey(), big_ata, Auth::Payee(big), 2 * ONE, false);
     assert_leash_err(&agent_send(&mut env, &[ix]), LeashError::ExceedsPerTxCap);
 }
@@ -329,7 +329,7 @@ fn err_request_not_pending_on_double_approve() {
     let approve = ix_approve(&env, 0, env.merchant_ata, Auth::Payee(env.merchant));
     assert_ok(&owner_send(&mut env, &[approve.clone()]));
     assert_leash_err(&owner_send(&mut env, &[approve]), LeashError::RequestNotPending);
-    assert_leash_err(&owner_send(&mut env, &[ix_reject(&env, 0)]), LeashError::RequestNotPending);
+    assert_leash_err(&{ let ixs = [ix_reject(&env, 0)]; owner_send(&mut env, &ixs) }, LeashError::RequestNotPending);
 }
 
 #[test]
@@ -379,7 +379,7 @@ fn err_label_too_long() {
 #[test]
 fn err_insufficient_funds() {
     let mut env = setup(no_cosign());
-    assert_ok(&owner_send(&mut env, &[ix_withdraw(&env, 1_000 * ONE)]));
+    assert_ok(&{ let ixs = [ix_withdraw(&env, 1_000 * ONE)]; owner_send(&mut env, &ixs) });
     let ix = ix_spend(&env, &env.agent.pubkey(), env.merchant_ata, Auth::Payee(env.merchant), ONE / 10, false);
     assert_leash_err(&agent_send(&mut env, &[ix]), LeashError::InsufficientFunds);
 }
@@ -568,7 +568,7 @@ fn err_signed_mandate_tampered_message() {
 fn err_signed_mandate_missing_ed25519_ix() {
     let mut env = setup(no_cosign());
     let terms = terms_for(&env, Pubkey::new_unique());
-    assert_leash_err(&agent_send(&mut env, &[ix_redeem(&env, terms)]), LeashError::InvalidMandateSignature);
+    assert_leash_err(&{ let ixs = [ix_redeem(&env, terms)]; agent_send(&mut env, &ixs) }, LeashError::InvalidMandateSignature);
 }
 
 #[test]
@@ -587,7 +587,7 @@ fn err_signed_mandate_replayed_nonce() {
     let terms = terms_for(&env, Pubkey::new_unique());
     let msg = mandate_message(&terms);
     let owner = env.owner.insecure_clone();
-    assert_ok(&agent_send(&mut env, &[ed25519_ix(&owner, &msg, u16::MAX), ix_redeem(&env, terms)]));
+    assert_ok(&{ let ixs = [ed25519_ix(&owner, &msg, u16::MAX), ix_redeem(&env, terms)]; agent_send(&mut env, &ixs) });
     // Same signature again: nonce 0 != mandate_seq 1.
     let mut replay = ix_redeem(&env, terms);
     replay.accounts[2].pubkey = mandate_pda(&env.vault, 1);

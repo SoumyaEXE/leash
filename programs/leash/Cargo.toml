@@ -29,7 +29,7 @@ solana-sdk-ids = "3.1"
 
 [dev-dependencies]
 # Same pins as `anchor init --test-template litesvm` (Anchor 1.2.2).
-litesvm = "0.15.0"
+litesvm = { version = "0.15.0", features = ["precompiles"] } # ed25519 for signed-mandate tests
 solana-message = "4"
 solana-transaction = "4"
 solana-signer = "3"

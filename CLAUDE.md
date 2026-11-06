@@ -50,7 +50,7 @@ NOTES.md                 Deviations from the specs, decisions, spike results
 
 ## Commands (keep this section updated as scripts are added)
 ```
-anchor build                      # build program, regenerate IDL + types
+anchor build --arch v0            # build program (v0: devnet has no sBPFv3 yet), regenerate IDL + types
 cargo test -p leash               # Rust LiteSVM program tests (template from anchor init)
 anchor test                       # full test run (Surfpool by default; --validator legacy for test-validator)
 anchor deploy --provider.cluster devnet

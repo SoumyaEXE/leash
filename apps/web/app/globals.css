@@ -1,0 +1,172 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens. Theme values (fonts, #050303, #ea2845, shine/blob/fade keyframes) follow nestjs.com's
+ * app/index.css — MIT License, Copyright (c) 2017-2026 Kamil Myśliwiec. Everything else is Leash's own.
+ */
+@theme {
+  --breakpoint-2xl: 1920px;
+  --font-sans: var(--font-manrope), "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), "Geist Mono", ui-monospace, monospace;
+
+  --color-bg: #050303;
+  --color-ink: #ffffff;
+  --color-primary: #ea2845;
+  --color-glow: #e0234e;
+  --color-panel: #121212;
+  --color-panel-2: #1a1a1a;
+  --color-line: #262626;
+  --color-ok: #3ddc97;
+  --color-warn: #f5b544;
+  --color-danger: #ea2845;
+
+  --animate-shine: shine 3s linear infinite;
+  --animate-blob: blob 30s linear infinite alternate;
+  --animate-spin-slow: spinSlow 20s linear infinite;
+  --animate-fade-out: fadeOut 5s ease forwards;
+  --animate-fade-in: fadeIn 5s ease forwards;
+  --animate-noise: noiseShift 1.25s steps(5) infinite;
+  --animate-blink: blink 1s steps(1) infinite;
+
+  @keyframes fadeOut {
+    0% { opacity: 1; }
+    25% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  @keyframes fadeIn {
+    0% { opacity: 0; }
+    25% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+  @keyframes shine {
+    0% { background-position: 100%; }
+    100% { background-position: -100%; }
+  }
+  @keyframes blob {
+    0% { transform: translate(0px, 0px) scaleY(1); }
+    25% { transform: translate(170px, 0) scaleY(1.6) rotate(50deg); }
+    45% { transform: translate(-130px, 0) scaleY(0.7) rotate(-10deg); }
+    65% { transform: translate(150px, 0) scaleY(1.2) rotate(30deg); filter: blur(100px); }
+    85% { transform: translate(-120px, 0) scaleY(0.8) rotate(-20deg); }
+    100% { transform: translate(0px, 0px) scaleY(1); }
+  }
+  @keyframes spinSlow {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  @keyframes noiseShift {
+    0% { transform: translate(0, 0); }
+    20% { transform: translate(-100px, -66px); }
+    40% { transform: translate(-66px, -100px); }
+    60% { transform: translate(-150px, -50px); }
+    80% { transform: translate(-34px, -134px); }
+    100% { transform: translate(0, 0); }
+  }
+  @keyframes blink {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0; }
+  }
+}
+
+html {
+  background-color: var(--color-bg);
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--color-bg);
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: rgba(234, 40, 69, 0.45);
+  color: #fff;
+}
+
+/* Feature card surface: dark gradient, 1px gradient border, faint grid in the top-right corner. */
+.leash-card {
+  position: relative;
+  border-radius: 24px;
+  background: linear-gradient(to bottom, #202020, #0e0e0e);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  transition: background 0.3s ease-in-out, opacity 0.3s ease-in-out;
+  isolation: isolate;
+}
+.leash-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(to top, #1a1a1a, #7c7c7c);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box exclude, linear-gradient(#fff 0 0);
+  pointer-events: none;
+  z-index: 1;
+}
+.leash-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image:
+    linear-gradient(#b8b8b8 0.5px, transparent 0.5px, transparent calc(100% - 0.5px), #b8b8b8 calc(100% - 0.5px)),
+    linear-gradient(90deg, #b8b8b8 0.5px, transparent 0.5px, transparent calc(100% - 0.5px), #b8b8b8 calc(100% - 0.5px));
+  background-size: 16.6667% 16.6667%;
+  opacity: 0.05;
+  -webkit-mask-image: radial-gradient(circle at top right, #000 0%, transparent 60%);
+  mask-image: radial-gradient(circle at top right, #000 0%, transparent 60%);
+}
+.leash-card:hover,
+.leash-card[data-hovered="true"] {
+  background: linear-gradient(to bottom, #353535, #0e0e0e);
+}
+
+/* Big rounded section panel (product / footer style). */
+.leash-panel {
+  border-radius: 32px;
+  background: linear-gradient(180deg, #1c1c1c 0%, #121212 100%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Thin hairline table borders. */
+.leash-hairline {
+  border-color: var(--color-line);
+}
+
+/* Wallet adapter button, restyled to the primary-button look. */
+.wallet-adapter-button.wallet-adapter-button-trigger,
+.wallet-adapter-button {
+  font-family: var(--font-sans) !important;
+  font-weight: 700 !important;
+  border-radius: 16px !important;
+  height: 44px !important;
+  padding: 0 18px !important;
+  font-size: 14px !important;
+  background: #fff !important;
+  color: #000 !important;
+}
+.wallet-adapter-button:not([disabled]):hover {
+  background: #f1f1f1 !important;
+}
+.wallet-adapter-modal-wrapper {
+  font-family: var(--font-sans) !important;
+  background: #121212 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

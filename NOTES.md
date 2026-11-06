@@ -71,3 +71,17 @@ Specs live in the planning kit (`../leash-solana-hackathon/docs/`). Anything her
   running program.
 - **Devnet funding:** the RPC faucet is closed (`410 Gone`). Fund only the owner at faucet.solana.com; setup moves fee
   SOL to the other wallets.
+
+### Build + deploy (2026-11-06, Codespace)
+- Toolchain in the Codespace: Anchor CLI **1.2.2** (avm; the one-shot installer pinned 1.1.2), Agave CLI 3.1.10,
+  rustc 1.99.1, Surfpool 1.7.0. `anchor-lang`/`anchor-spl` 1.2.2.
+- `Cargo.lock` starts from Anchor 1.2.2's LiteSVM template lock (`cli/templates/litesvm/Cargo.lock`): without it
+  cargo resolves Agave 4.4.x crates that LiteSVM 0.15.0 doesn't compile against. LiteSVM needs the
+  `precompiles` feature for the Ed25519 mandate tests. Harness uses `solana-account` 4.
+- **sBPF version:** Anchor 1.2.2 builds sBPFv3 by default, but devnet (Agave 4.4.0) still has feature
+  `BUwGLeF3…` "Enable deployment and execution of SBPFv3 programs" **inactive**, so the deploy was rejected.
+  We build with `anchor build --arch v0`. Switch back to v3 once devnet activates it (SIMD-0500).
+- Program `Cck8fpFodqfGqKXk1UkhVbYoDXMEqk3vAshB4e3G5SAe` deployed, upgrade authority = owner, 382,552 bytes.
+- 45/45 LiteSVM tests pass (sBPFv0 build). SDK layout test: 58/58 checks vs the generated IDL.
+- Public devnet RPC rate-limits hard (429s during setup). Use a free Helius/Triton devnet key in `SOLANA_RPC_URL`
+  before recording.
