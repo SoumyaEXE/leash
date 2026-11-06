@@ -6,6 +6,11 @@ import { prefersReducedMotion } from "../motion/reduced-motion";
 import { Check, ChevronDown, Copy, Pause, Plus, Shield } from "./icons";
 import { Arrow, Badge, Reveal } from "./primitives";
 
+/** The demo vault from .env, shortened like the dashboard does ("6qthf8…QC7U3P"). */
+function shortVault(addr: string | undefined): string {
+  return addr && addr.length > 12 ? `${addr.slice(0, 6)}…${addr.slice(-6)}` : "demo vault";
+}
+
 /**
  * Landing hero in the template's layout: centered badge, two-line gradient headline, sub, one CTA, then the
  * device collage. As the page scrolls, the side cards slide out from behind the phone and the flare lights up.
@@ -301,7 +306,7 @@ function Phone() {
             </div>
             <div className="mt-7 text-[32px] font-semibold leading-9 tracking-[-0.5px]">Agent Vault</div>
             <div className="mt-2 flex items-center gap-2 text-[15px] text-white/70">
-              (8Zx5Du…bQcpkK · devnet)
+              ({shortVault(process.env.NEXT_PUBLIC_LEASH_VAULT)} · devnet)
               <Copy size={16} />
             </div>
             <div className="mt-6 rounded-[24px] border border-white/10 bg-black/25 px-[18px] pb-4 pt-4 backdrop-blur-[10px]">

@@ -53,7 +53,7 @@ export function StackMarquee() {
 export type ProgramFacts = { instructions: number; errors: number; events: number };
 
 /** Program tests in programs/leash/tests at the last count (Nov 6). Not derivable from the IDL. */
-const PROGRAM_TESTS = 45;
+const PROGRAM_TESTS = 81; // 78 LiteSVM integration + 3 unit tests (cargo test -p leash, v2 program)
 
 export function Numbers({ facts }: { facts: ProgramFacts }) {
   const NUMBERS = [

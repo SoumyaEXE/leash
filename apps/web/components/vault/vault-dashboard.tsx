@@ -63,7 +63,7 @@ function Meter({ value, max, tone = "white" }: { value: bigint; max: bigint; ton
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="flex flex-col gap-1.5">
+    <label className="flex min-w-0 flex-col gap-1.5">
       <span className="text-[14px] text-white/60">{label}</span>
       {children}
     </label>
@@ -71,19 +71,23 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 const inputCls =
-  "h-12 rounded-[14px] border border-white/15 bg-black/50 px-4 font-mono text-[14px] outline-none transition-colors placeholder:font-sans placeholder:text-white/35 focus:border-[#d32800]";
+  "h-12 w-full min-w-0 rounded-[14px] border border-white/15 bg-black/50 px-4 font-mono text-[14px] transition-colors placeholder:font-sans placeholder:text-white/50 focus:border-[#d32800]";
 
 function ActivityRow({ e, labels }: { e: ActivityEvent; labels: Map<string, string> }) {
-  const tone =
-    e.kind === "blocked" || e.kind === "frozen"
-      ? "border-l-[#ff4d3d]"
-      : e.kind === "spent" || (e.kind === "resolved" && e.approved)
-        ? "border-l-[#0cbe4d]"
-        : e.kind === "requested"
-          ? "border-l-[#f5a524]"
-          : "border-l-white/25";
+  // RequiresCosign is the program routing a big payment to the owner, not a refusal of the payee
+  const needsCosign = e.kind === "blocked" && e.errorName === "RequiresCosign";
+  const red = (e.kind === "blocked" && !needsCosign) || e.kind === "frozen";
+  const tone = red
+    ? "border-l-[#ff4d3d]"
+    : e.kind === "spent" || (e.kind === "resolved" && e.approved)
+      ? "border-l-[#0cbe4d]"
+      : e.kind === "requested" || needsCosign
+        ? "border-l-[#f5a524]"
+        : "border-l-white/25";
   const titles: Record<ActivityEvent["kind"], string> = {
-    blocked: `Blocked onchain · ${e.errorName ?? "rejected"}${e.strike === true ? " · strike" : e.strike === false ? " · no strike" : ""}`,
+    blocked: needsCosign
+      ? "Needs owner co-sign · RequiresCosign"
+      : `Blocked onchain · ${e.errorName ?? "rejected"}${e.strike === true ? " · strike" : e.strike === false ? " · no strike" : ""}`,
     spent: `Paid${e.via ? ` via ${e.via}` : ""}`,
     requested: "Co-sign requested",
     resolved: e.approved ? "Request approved" : "Request rejected",
@@ -99,8 +103,8 @@ function ActivityRow({ e, labels }: { e: ActivityEvent; labels: Map<string, stri
   return (
     <li className={`border-l-2 ${tone} py-3 pl-4`}>
       <div className="flex items-baseline justify-between gap-4">
-        <span className={`text-[16px] ${e.kind === "blocked" ? "text-[#ffb0a6]" : ""}`}>{title}</span>
-        <span className="shrink-0 text-[13px] text-white/45">{ago(e.ts)}</span>
+        <span className={`text-[16px] ${red ? "text-[#ffb0a6]" : needsCosign ? "text-[#ffd48a]" : ""}`}>{title}</span>
+        <span className="shrink-0 text-[13px] text-white/60">{ago(e.ts)}</span>
       </div>
       <div className="tabular mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[14px] text-white/70">
         {e.amount !== undefined && <span>{fmt(e.amount)} dUSDC</span>}
@@ -410,6 +414,7 @@ export function VaultDashboard() {
                       type="button"
                       role="switch"
                       aria-checked={vault.paused}
+                      aria-label="Pause all payments (kill switch)"
                       disabled={!!pending}
                       onClick={() => void act({ type: "setPaused", vault: vaultAddr, paused: !vault.paused }, vault.paused ? "Unpause" : "Pause")}
                       className={`relative h-8 w-14 rounded-full transition-colors duration-300 ${vault.paused ? "bg-[#ff4d3d]" : "bg-white/20"}`}
@@ -430,15 +435,20 @@ export function VaultDashboard() {
                       </div>
                       <div className="tabular mt-1 text-[24px] leading-8">
                         {vault.strikes}
-                        <span className="text-[14px] text-white/45">/{vault.freezeAfterStrikes || "∞"}</span>
+                        <span className="text-[14px] text-white/60">/{vault.freezeAfterStrikes || "∞"}</span>
                       </div>
                     </div>
                     <div>
-                      <div className="text-white/55">Blocked total</div>
+                      <div
+                        className="text-white/55"
+                        title="Refusals written to the vault account by the tripwire path. A reverted agent_spend can't write to the account, so those appear only in Activity."
+                      >
+                        Recorded refusals
+                      </div>
                       <div className="tabular mt-1 text-[24px] leading-8">{vault.blockedCount.toString()}</div>
                     </div>
                     <div>
-                      <div className="text-white/55">Last blocked</div>
+                      <div className="text-white/55">Last recorded</div>
                       <div className="mt-1 text-[16px] leading-8">{vault.lastBlockedAt ? ago(vault.lastBlockedAt) : "never"}</div>
                     </div>
                   </div>
@@ -539,13 +549,13 @@ export function VaultDashboard() {
           {/* Payees */}
           <Card title="Allowlisted payees">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-left">
+              <table className="w-full min-w-[540px] text-left">
                 <thead className="text-[14px] text-white/50">
                   <tr className="border-b border-white/10">
                     <th className="pb-3 font-normal">Service</th>
                     <th className="pb-3 font-normal">Address</th>
                     <th className="pb-3 font-normal">Per payment</th>
-                    <th className="w-[28%] pb-3 font-normal">Budget used</th>
+                    <th className="w-[24%] pb-3 font-normal">Budget used</th>
                     <th className="pb-3 text-right font-normal">Active</th>
                   </tr>
                 </thead>
@@ -571,6 +581,7 @@ export function VaultDashboard() {
                             type="button"
                             role="switch"
                             aria-checked={p.active}
+                            aria-label={`${p.label} can be paid`}
                             disabled={!!pending}
                             onClick={() => void act({ type: "updatePayee", vault: vaultAddr, payee: p.payee, perTxMax: p.perTxMax, budgetTotal: p.budgetTotal, active: !p.active }, p.active ? "Disable payee" : "Enable payee")}
                             className={`relative h-6 w-11 rounded-full transition-colors ${p.active ? "bg-[#d32800]" : "bg-white/15"}`}
@@ -582,7 +593,7 @@ export function VaultDashboard() {
                             aria-label={`Remove ${p.label}`}
                             disabled={!!pending}
                             onClick={() => void act({ type: "removePayee", vault: vaultAddr, payee: p.payee }, `Remove ${p.label}`)}
-                            className="px-1 text-[14px] text-white/45 hover:text-[#ffb0a6]"
+                            className="px-1 text-[14px] text-white/60 hover:text-[#ffb0a6]"
                           >
                             ✕
                           </button>
@@ -600,22 +611,26 @@ export function VaultDashboard() {
                 </tbody>
               </table>
             </div>
-            <div className="mt-6 grid gap-3 sm:grid-cols-[1.4fr_1fr_0.6fr_0.6fr_auto] sm:items-end">
-              <Field label="Payee wallet">
-                <input className={inputCls} value={np.address} onChange={(e) => setNp({ ...np, address: e.target.value })} placeholder="Base58 address" />
+            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+              <div className="col-span-2 sm:col-span-3 grid gap-3 sm:grid-cols-[1.6fr_1fr]">
+                <Field label="Payee wallet">
+                  <input className={inputCls} value={np.address} onChange={(e) => setNp({ ...np, address: e.target.value })} placeholder="Base58 address" />
+                </Field>
+                <Field label="Label">
+                  <input className={inputCls} value={np.label} maxLength={32} onChange={(e) => setNp({ ...np, label: e.target.value })} placeholder="Weather API" />
+                </Field>
+              </div>
+              <Field label="Per payment (dUSDC)">
+                <input className={inputCls} inputMode="decimal" value={np.perTx} onChange={(e) => setNp({ ...np, perTx: e.target.value })} />
               </Field>
-              <Field label="Label">
-                <input className={inputCls} value={np.label} maxLength={32} onChange={(e) => setNp({ ...np, label: e.target.value })} placeholder="Weather API" />
+              <Field label="Budget (dUSDC)">
+                <input className={inputCls} inputMode="decimal" value={np.budget} onChange={(e) => setNp({ ...np, budget: e.target.value })} />
               </Field>
-              <Field label="Per pay">
-                <input className={inputCls} value={np.perTx} onChange={(e) => setNp({ ...np, perTx: e.target.value })} />
-              </Field>
-              <Field label="Budget">
-                <input className={inputCls} value={np.budget} onChange={(e) => setNp({ ...np, budget: e.target.value })} />
-              </Field>
-              <PrimaryButton size="md" disabled={!np.address || !np.label || !!pending} onClick={() => void addPayee()}>
-                <span className="whitespace-nowrap">Add payee</span>
-              </PrimaryButton>
+              <div className="col-span-2 sm:col-span-1">
+                <PrimaryButton size="md" disabled={!np.address || !np.label || !!pending} onClick={() => void addPayee()}>
+                  <span className="whitespace-nowrap">Add payee</span>
+                </PrimaryButton>
+              </div>
             </div>
           </Card>
 
@@ -701,7 +716,7 @@ export function VaultDashboard() {
               <div className="sm:col-span-2">
                 <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
                   <span className="text-[14px] text-white/60">What your wallet will show (the program checks these exact bytes)</span>
-                  {vault && <span className="tabular text-[13px] text-white/45">nonce {vault.mandateSeq.toString()}</span>}
+                  {vault && <span className="tabular text-[13px] text-white/60">nonce {vault.mandateSeq.toString()}</span>}
                 </div>
                 {preview ? (
                   <pre className="max-h-[320px] overflow-auto whitespace-pre-wrap break-all rounded-[14px] border border-white/10 bg-black/50 p-4 font-mono text-[12.5px] leading-[20px] text-white/80">

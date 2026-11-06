@@ -9,7 +9,7 @@ const geistMono = Geist_Mono({ subsets: ["latin"], weight: ["400", "500"], varia
 export const metadata: Metadata = {
   title: "Leash · Onchain mandates for AI agent wallets",
   description:
-    "Your agent will get prompt-injected. Your money won't move. Leash is a Solana program that only releases an agent's funds when an owner-signed authorization covers the payment.",
+    "Your agent will get prompt-injected. Your money won't move anywhere you didn't sign for. Leash is a Solana program that only releases an agent's funds when an owner-signed authorization covers the payment.",
   icons: { icon: "/favicon.svg" },
   openGraph: {
     title: "Leash · Onchain mandates for AI agent wallets",
