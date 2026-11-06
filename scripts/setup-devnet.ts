@@ -3,8 +3,9 @@
  *  1. tops up agent / victim / attacker with fee SOL from the owner,
  *  2. creates our own 6-decimal test mint "dUSDC" (owner = mint authority),
  *  3. creates token accounts and gives the victim 1,000 dUSDC,
- *  4. if the program is deployed: creates the demo vault (1), Arena vault (2) and tripwire vault (3),
- *     deposits funds and adds the two x402 payees,
+ *  4. if the program is deployed: creates the demo vault (1), Arena vault (2) and tripwire vault (3) (ids +
+ *     LEASH_VAULT_ID_OFFSET, moved past old-layout vaults automatically), deposits funds, adds the two x402
+ *     payees (paid to their associated token accounts, created in step 3) and applies the demo policy,
  *  5. writes every address to .env (keeping your other values).
  * Run again any time; it only does what's missing.
  */
@@ -26,9 +27,9 @@ import {
   mintTo,
   transfer,
 } from "@solana/spl-token";
-import { LeashClient, fromBaseUnits } from "@leash/sdk";
+import { LeashClient, VAULT_ACCOUNT_SIZE, fromBaseUnits, policyOf } from "@leash/sdk";
 import { ROOT, connection, loadKeypair, setEnv } from "./lib";
-import { ARENA_VAULT, DEMO_VAULT, FEE_SOL, PAYEES, TRIPWIRE_VAULT, VICTIM_BALANCE } from "./demo-config";
+import { ARENA_VAULT, DEMO_VAULT, FEE_SOL, PAYEES, TRIPWIRE_VAULT, VICTIM_BALANCE, samePolicy, vaultIdOffset } from "./demo-config";
 
 const conn = connection();
 const owner = loadKeypair("owner");
@@ -135,6 +136,18 @@ async function main() {
     { cfg: ARENA_VAULT, env: "ARENA_VAULT", payees: false },
     { cfg: TRIPWIRE_VAULT, env: "TRIPWIRE_VAULT", payees: true },
   ];
+
+  // Vault ids: skip addresses held by vaults of the first program version (different layout, can't be loaded or
+  // re-initialized). Moves LEASH_VAULT_ID_OFFSET in steps of 10 and saves it to .env.
+  for (let tries = 0; ; tries++) {
+    const infos = await Promise.all(vaults.map((v) => conn.getAccountInfo(leash.vaultPda(owner.publicKey, v.cfg.id))));
+    const stale = infos.findIndex((i) => i && (!i.owner.equals(programId) || i.data.length !== VAULT_ACCOUNT_SIZE));
+    if (stale < 0) break;
+    if (tries >= 20) throw new Error("No free vault ids after 20 tries; set LEASH_VAULT_ID_OFFSET in .env by hand.");
+    const next = vaultIdOffset() + 10n;
+    log(`vault id ${vaults[stale].cfg.id} holds an old-layout account (${infos[stale]!.data.length} bytes): LEASH_VAULT_ID_OFFSET → ${next}`);
+    setEnv({ LEASH_VAULT_ID_OFFSET: next.toString() });
+  }
   const total = vaults.reduce((s, v) => s + v.cfg.balance, 0n);
   const ownerBal = await tokenBalance(atas.owner);
   if (ownerBal < total) {
@@ -162,8 +175,16 @@ async function main() {
         }
       }
     }
-    const state = await leash.getVault(pda);
-    log(`vault ${v.cfg.id}  ${pda.toBase58()}  ${fromBaseUnits(state.balance)} dUSDC  freeze_after=${state.freezeAfterStrikes}`);
+    let state = await leash.getVault(pda);
+    if (!samePolicy(policyOf(state), v.cfg.policy)) {
+      await leash.ownerAction({ type: "updatePolicy", vault: pda, policy: v.cfg.policy });
+      log(`  policy updated to the demo config`);
+      state = await leash.getVault(pda);
+    }
+    log(
+      `vault ${v.cfg.id}  ${pda.toBase58()}  ${fromBaseUnits(state.balance)} dUSDC  freeze_after=${state.freezeAfterStrikes}` +
+        `  enforce_tripwire=${state.enforceTripwire}  cosign_window=${state.cosignWindowThreshold > 0n ? fromBaseUnits(state.cosignWindowThreshold) : "off"}`,
+    );
     envOut[v.env] = pda.toBase58();
   }
   setEnv({

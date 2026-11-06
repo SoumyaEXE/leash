@@ -6,7 +6,8 @@
     "keys": "tsx keygen.ts",
     "balances": "tsx balances.ts",
     "setup:devnet": "tsx setup-devnet.ts",
-    "reset:demo": "tsx reset-demo.ts"
+    "reset:demo": "tsx reset-demo.ts",
+    "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
     "@leash/sdk": "workspace:*",

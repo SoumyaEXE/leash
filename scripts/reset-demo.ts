@@ -1,14 +1,15 @@
 /**
  * Restore the seeded demo state in a few seconds (the /demo "Reset" button calls this):
  *  - attacker's loot goes back to the victim; victim topped up to exactly 1,000 dUSDC,
- *  - demo + tripwire vaults: pending requests rejected, payee budgets fresh, balances exact, unpaused, strikes 0.
+ *  - demo + tripwire vaults: open requests rejected (pending or expired: this closes them and frees the 8 open
+ *    slots), payee budgets fresh, policy = demo config, balances exact, unpaused, strikes 0.
  * Idempotent. The Arena vault is left alone (its counters are the public scoreboard).
  */
 import { PublicKey } from "@solana/web3.js";
 import { getAccount, getAssociatedTokenAddressSync, mintTo, transfer } from "@solana/spl-token";
-import { LeashClient, fromBaseUnits } from "@leash/sdk";
+import { LeashClient, fromBaseUnits, policyOf } from "@leash/sdk";
 import { connection, envPubkey, loadKeypair } from "./lib";
-import { DEMO_VAULT, PAYEES, TRIPWIRE_VAULT, VICTIM_BALANCE } from "./demo-config";
+import { DEMO_VAULT, PAYEES, TRIPWIRE_VAULT, VICTIM_BALANCE, samePolicy } from "./demo-config";
 
 const conn = connection();
 const owner = loadKeypair("owner");
@@ -45,15 +46,21 @@ async function main() {
 
   // 2. Vaults
   const leash = new LeashClient({ connection: conn, programId, wallet: owner });
-  for (const cfg of [DEMO_VAULT, TRIPWIRE_VAULT]) {
-    const vault = leash.vaultPda(owner.publicKey, cfg.id);
+  // The vaults the apps actually use (.env, written by setup), else the configured ids.
+  const targets = [
+    { cfg: DEMO_VAULT, env: process.env.LEASH_VAULT },
+    { cfg: TRIPWIRE_VAULT, env: process.env.TRIPWIRE_VAULT },
+  ];
+  for (const { cfg, env } of targets) {
+    const vault = env?.trim() ? new PublicKey(env.trim()) : leash.vaultPda(owner.publicKey, cfg.id);
     if (!(await conn.getAccountInfo(vault))) {
-      log(`vault ${cfg.id} missing: run pnpm setup:devnet`);
+      log(`vault ${vault.toBase58()} missing: run pnpm setup:devnet`);
       continue;
     }
-    for (const r of await leash.listRequests(vault, "pending")) {
+    // Every open request (pending or expired). reject_request closes it and refunds the agent's rent.
+    for (const r of await leash.listRequests(vault)) {
       await leash.ownerAction({ type: "rejectRequest", vault, request: r.address });
-      log(`  rejected pending request #${r.seq}`);
+      log(`  rejected ${r.status} request #${r.seq}`);
     }
     for (const p of PAYEES) {
       const wallet = wallets[p.key];
@@ -67,6 +74,10 @@ async function main() {
       }
     }
     const v = await leash.getVault(vault);
+    if (!samePolicy(policyOf(v), cfg.policy)) {
+      await leash.ownerAction({ type: "updatePolicy", vault, policy: cfg.policy });
+      log("  policy reset to the demo config");
+    }
     if (v.paused) await leash.ownerAction({ type: "setPaused", vault, paused: false });
     else if (v.strikes > 0) await leash.ownerAction({ type: "resetStrikes", vault });
     if (v.balance > cfg.balance) await leash.ownerAction({ type: "withdraw", vault, amount: v.balance - cfg.balance });
@@ -76,10 +87,16 @@ async function main() {
       await transfer(conn, owner, ownerAta, v.vaultAta, owner, need, [], { commitment: "confirmed" });
     }
     const after = await leash.getVault(vault);
-    const windowOld = Math.floor(Date.now() / 1000) - after.windowStart >= 86_400;
-    const used = windowOld ? 0n : after.spentInWindow;
-    log(`vault ${cfg.id}  ${fromBaseUnits(after.balance)} dUSDC  paused=${after.paused}  strikes=${after.strikes}  24h used ${fromBaseUnits(used)}/${fromBaseUnits(after.dailyCap)}`);
-    if (used * 10n > after.dailyCap * 6n) log("  ⚠ 24h window more than 60% used; legit S4 runs may hit ExceedsDailyCap until it rolls over");
+    const used = after.spent24h;
+    log(
+      `vault ${after.vaultId}  ${fromBaseUnits(after.balance)} dUSDC  paused=${after.paused}  strikes=${after.strikes}  ` +
+        `24h used ${fromBaseUnits(used)}/${fromBaseUnits(after.dailyCap)}  open requests=${after.openRequests}`,
+    );
+    // The cap is a rolling 24h (hourly buckets): a payment stops counting 24-25h after it was made.
+    if (used * 10n > after.dailyCap * 6n) log("  ⚠ more than 60% of the rolling 24h cap is used; legit S4 runs may hit ExceedsDailyCap until those payments are 24-25h old");
+    if (after.cosignWindowThreshold > 0n && after.autonomous24h * 10n > after.cosignWindowThreshold * 6n) {
+      log("  ⚠ autonomous 24h spending is above 60% of the co-sign window threshold; small payments may need a co-sign");
+    }
   }
   log("reset done");
 }
