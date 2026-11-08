@@ -7,6 +7,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { SCENARIOS, type DemoBalances, type DemoRunResult, type DemoStep, type ScenarioId } from "@leash/sdk/demo";
 import { ENV } from "@/lib/env";
 import { mockBalances, mockRun } from "@/lib/demo-mock";
+import RECORDED from "@/lib/demo-recorded.json";
+
+const RECORDED_DAY = new Date(RECORDED.recordedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 import { Badge, Container, Reveal, Sparkle } from "../cx/primitives";
 import { prefersReducedMotion } from "../motion/reduced-motion";
 import { Nav } from "../site/nav";
@@ -169,6 +172,9 @@ function Panel({
 export function DemoClient() {
   const params = useSearchParams();
   const mock = params.get("mock") === "1";
+  // hosted site: replay real devnet runs recorded from the agent server (real tx links), unless ?live=1
+  const recorded = !mock && params.get("live") !== "1" && ENV.demoMode === "recorded";
+  const replay = mock || recorded;
   const [balances, setBalances] = useState<DemoBalances | null>(null);
   const [offline, setOffline] = useState(false);
   const [busy, setBusy] = useState<ScenarioId | "reset" | null>(null);
@@ -180,7 +186,7 @@ export function DemoClient() {
   const mockBal = useRef({ victim: 1000, vault: 1000 });
 
   const refresh = useCallback(async () => {
-    if (mock) {
+    if (replay) {
       setBalances(mockBalances(mockBal.current.victim, mockBal.current.vault));
       setOffline(false);
       return;
@@ -195,7 +201,7 @@ export function DemoClient() {
     setOffline(false);
     // A 5xx here is an RPC hiccup (devnet 429s): keep showing the last balances instead of zeros.
     if (r.ok) setBalances((await r.json()) as DemoBalances);
-  }, [mock]);
+  }, [replay]);
 
   // live balances: account subscriptions on both token accounts + 3s polling fallback (public devnet WS is flaky)
   useEffect(() => {
@@ -205,7 +211,7 @@ export function DemoClient() {
   }, [refresh]);
 
   useEffect(() => {
-    if (mock || !balances?.victim.tokenAccount || !balances.vault.tokenAccount) return;
+    if (replay || !balances?.victim.tokenAccount || !balances.vault.tokenAccount) return;
     const conn = new Connection(ENV.rpc, { commitment: "confirmed", wsEndpoint: ENV.ws });
     const ids: number[] = [];
     for (const acct of [balances.victim.tokenAccount, balances.vault.tokenAccount]) {
@@ -216,7 +222,7 @@ export function DemoClient() {
       }
     }
     return () => ids.forEach((id) => void conn.removeAccountChangeListener(id).catch(() => {}));
-  }, [mock, balances?.victim.tokenAccount, balances?.vault.tokenAccount, refresh]);
+  }, [replay, balances?.victim.tokenAccount, balances?.vault.tokenAccount, refresh]);
 
   const reveal = (run: DemoRunResult, set: (s: PanelState) => void) =>
     new Promise<void>((resolve) => {
@@ -242,11 +248,22 @@ export function DemoClient() {
     setNotice(null);
     setVictim({ run: null, visible: 0, showPayments: false });
     setLeashed({ run: null, visible: 0, showPayments: false });
-    const b = { v: Number(balances?.victim.balance ?? 0), l: Number(balances?.vault.balance ?? 0) };
+    const rec = recorded ? (RECORDED.runs as unknown as Record<ScenarioId, { victim: DemoRunResult; leashed: DemoRunResult }>)[s] : null;
+    if (rec) {
+      // each recorded run started from a reset vault: show its real starting balances
+      mockBal.current = { victim: Number(rec.victim.balanceBefore), vault: Number(rec.leashed.balanceBefore) };
+      setBalances(mockBalances(mockBal.current.victim, mockBal.current.vault));
+    }
+    const b = rec
+      ? { v: Number(rec.victim.balanceBefore), l: Number(rec.leashed.balanceBefore) }
+      : { v: Number(balances?.victim.balance ?? 0), l: Number(balances?.vault.balance ?? 0) };
     setBefore(b);
     try {
       let res: { victim: DemoRunResult; leashed: DemoRunResult };
-      if (mock) {
+      if (rec) {
+        await new Promise((r) => setTimeout(r, 700));
+        res = rec;
+      } else if (mock) {
         await new Promise((r) => setTimeout(r, 900));
         res = { victim: mockRun(s, "victim", mockBal.current.victim), leashed: mockRun(s, "leashed", mockBal.current.vault) };
       } else {
@@ -255,7 +272,7 @@ export function DemoClient() {
         res = await r.json();
       }
       await Promise.all([reveal(res.victim, setVictim), reveal(res.leashed, setLeashed)]);
-      if (mock) {
+      if (replay) {
         mockBal.current.victim = Number(res.victim.balanceAfter);
         mockBal.current.vault = Number(res.leashed.balanceAfter);
       }
@@ -271,7 +288,7 @@ export function DemoClient() {
     setBusy("reset");
     setNotice(null);
     try {
-      if (mock) {
+      if (replay) {
         mockBal.current = { victim: 1000, vault: 1000 };
       } else {
         const r = await fetch(`${ENV.agentUrl}/reset`, { method: "POST" });
@@ -303,7 +320,7 @@ export function DemoClient() {
         <div aria-hidden className="pointer-events-none absolute left-1/2 top-[-440px] h-[760px] w-[1000px] -translate-x-1/2 rounded-full blur-[130px]" style={{ background: "rgb(252 109 1 / 0.36)" }} />
         <Container className="relative flex flex-col items-center pb-10 text-center">
           <Reveal>
-            <Badge>Live on Solana devnet</Badge>
+            <Badge>{recorded ? "Recorded on Solana devnet" : "Live on Solana devnet"}</Badge>
           </Reveal>
           <Reveal delay={80} as="h1" className="cx-h2 mt-9 max-w-[820px]">
             Same Model. Same Input.
@@ -319,7 +336,7 @@ export function DemoClient() {
                   key={s}
                   type="button"
                   aria-pressed={active === s}
-                  disabled={!!busy || (offline && !mock)}
+                  disabled={!!busy || (offline && !replay)}
                   onClick={() => void runScenario(s)}
                   className={`h-11 rounded-[60px] px-5 text-[16px] transition-[background-color,color,box-shadow] duration-200 disabled:opacity-40 ${
                     active === s ? "bg-[#d32800] text-white shadow-[inset_0_0_0_1px_rgb(255_255_255/0.22),inset_0_1px_0_rgb(255_255_255/0.25)]" : "text-white/75 hover:bg-white/[0.06] hover:text-white"
@@ -329,7 +346,7 @@ export function DemoClient() {
                 </button>
               ))}
             </div>
-            <button type="button" disabled={!!busy || (offline && !mock)} onClick={() => void reset()} className="cx-btn-ghost cx-btn-sm !h-14">
+            <button type="button" disabled={!!busy || (offline && !replay)} onClick={() => void reset()} className="cx-btn-ghost cx-btn-sm !h-14">
               {busy === "reset" ? "Resetting…" : "Reset balances"}
             </button>
           </Reveal>
@@ -340,7 +357,13 @@ export function DemoClient() {
         </Container>
       </div>
       <Container className="flex flex-1 flex-col pb-10">
-      {offline && !mock && (
+      {recorded && (
+        <div className="mt-2 rounded-[20px] border border-white/15 bg-white/[0.03] px-6 py-4 text-center text-[15px] leading-6 text-white/80">
+          This hosted page replays real devnet runs recorded on {RECORDED_DAY}: the transactions and explorer links are real, the
+          playback is in your browser. To run it live, clone the repo and start three servers ("Run it" in the README).
+        </div>
+      )}
+      {offline && !replay && (
         <div className="mt-2 rounded-[20px] border border-[#f5a524]/40 bg-[#f5a524]/[0.07] px-6 py-4 text-[15px] leading-6">
           The agent server at {ENV.agentUrl} isn't reachable. Start it with <b>pnpm --filter agent dev</b>, or open{" "}
           <a className="underline" href="/demo?mock=1">

@@ -170,7 +170,7 @@ export function ArenaClient() {
                 rows={2}
                 maxLength={MAX}
                 aria-describedby={`${ids}-count ${ids}-hint`}
-                placeholder={paused ? "The Arena is paused." : "Talk Warden into paying you…"}
+                placeholder={paused ? "The live Arena is paused on this site. Run it locally (see the README)." : "Talk Warden into paying you…"}
                 disabled={paused}
                 className="composer-input block w-full resize-none bg-transparent px-5 pb-2 pt-4 text-[17px] leading-[26px] placeholder:text-white/50"
               />

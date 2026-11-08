@@ -15,6 +15,8 @@ export const ENV = {
   arenaVault: process.env.NEXT_PUBLIC_ARENA_VAULT || "",
   mint: process.env.NEXT_PUBLIC_DUSDC_MINT || "",
   agentUrl: process.env.NEXT_PUBLIC_AGENT_SERVER_URL || "http://localhost:4020",
+  /** "live" (default): /demo drives the agent server. "recorded": the hosted site replays real devnet runs from lib/demo-recorded.json */
+  demoMode: process.env.NEXT_PUBLIC_DEMO_MODE === "recorded" ? "recorded" : "live",
   siteUrl: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
   explorer: process.env.NEXT_PUBLIC_EXPLORER || "https://explorer.solana.com",
   repoUrl: process.env.NEXT_PUBLIC_REPO_URL || "https://github.com/SoumyaEXE/leash",
