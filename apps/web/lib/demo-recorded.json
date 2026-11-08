@@ -451,7 +451,7 @@
      {
       "kind": "info",
       "label": "POST /api/research",
-      "text": "Waiting for the owner to approve via Blink: http://localhost:3000/api/actions/approve?request=E8WvAiNKAuRacQgKq7Tt9xaBnSeef3ZzRQLYEBk1JTGo",
+      "text": "Waiting for the owner to approve via Blink: /api/actions/approve?request=E8WvAiNKAuRacQgKq7Tt9xaBnSeef3ZzRQLYEBk1JTGo",
       "t": 14509
      }
     ],
