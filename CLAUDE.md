@@ -69,7 +69,7 @@ pnpm --filter web dev             # dashboard on :3000 (/demo /vault /arena)
 pnpm --filter agent demo:split -- --scenario s1   # also: demo:victim, demo:leashed, s2 s4 s5
 
 # tests / checks
-pnpm --filter @leash/sdk test      # SDK layouts vs IDL (58 checks)
+pnpm --filter @leash/sdk test      # SDK: 83 tests incl. IDL conformance, mandate bytes, activity feed
 pnpm --filter @leash/mcp build && pnpm --filter @leash/mcp test:smoke   # MCP over stdio on devnet
 pnpm --filter @leash/plugin-sak example   # SAK plugin: legit pay + blocked injection
 pnpm -r typecheck

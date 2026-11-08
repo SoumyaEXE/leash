@@ -430,7 +430,7 @@ export function VaultDashboard() {
                   </div>
                   <div className="mt-3 grid grid-cols-3 gap-3 text-[14px]">
                     <div>
-                      <div className="text-white/55" title="Unauthorized attempts in the last 24h. Caps and budgets never strike.">
+                      <div className="text-white/55" title="Unauthorized attempts in the current strike window (24h from the first strike). Caps and budgets never strike.">
                         Strikes (24h)
                       </div>
                       <div className="tabular mt-1 text-[24px] leading-8">

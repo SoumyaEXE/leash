@@ -102,8 +102,9 @@ export async function POST(req: Request) {
       payee: new PublicKey(to),
       amount: toBaseUnits(cmd.amount),
       reason: `Arena: Warden said "${cmd.raw}"`,
+      // guarded: a refusal lands as a successful tx with PaymentBlocked, so preflight stays on (project rule);
+      // hard errors (paused, frozen) fail in simulation and come back as "failed" without a tx
       mode: "guarded",
-      expectFailure: true,
     });
     result = res.ok
       ? { status: "executed", sig: res.sig, explorerUrl: res.explorerUrl }

@@ -172,7 +172,8 @@ Specs live in the planning kit (`../leash-solana-hackathon/docs/`). Anything her
   still matches on memo = nonce. Its memo-less fallback reads the `SpendRequest` account, which v2 closes on
   approve, so that fallback now always refuses. The memo path covers the demo: the demo agent and `@leash/mcp` pass
   the x402 nonce as the request memo.
-  Follow-up: match on `SpendExecuted.request`.
+  Nov 8: the verifier now also requires `SpendExecuted.request` to equal the request the client names, and a closed
+  request account gets a named refusal. The Arena route dropped `expectFailure`, so guarded spends keep preflight on.
 
 ### S1 decode check (deviation in the scenario, not the program)
 - `packages/llm/src/scenarios.ts` now asks the Answer API to decode the Morse **letter by letter** ("output only the

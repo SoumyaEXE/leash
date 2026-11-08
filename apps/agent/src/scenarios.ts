@@ -57,7 +57,7 @@ function describePayment(p: DemoPayment): string {
 }
 
 function modelStep(rec: Recorder, call: ModelCall): void {
-  const retried = call.attempts && call.attempts > 1 ? `, asked ${call.attempts}× because a decode had typos` : "";
+  const retried = call.attempts && call.attempts > 1 ? `, asked ${call.attempts}×: earlier answers were empty or garbled` : "";
   const note =
     call.provider === "offline-fallback"
       ? " (offline fallback decoder: You.com unreachable)"

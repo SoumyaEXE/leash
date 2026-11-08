@@ -54,7 +54,11 @@ async function matchCosigned(
   }
   if (!txAccountKeys(tx).includes(request.toBase58())) return "Transaction does not reference the named spend request";
   const data = await leashAccount(request);
-  if (!data) return "Spend request account not found (or not a Leash account)";
+  if (!data) {
+    // v2 closes a SpendRequest when the owner approves it, so the account is gone; the program then binds the payment
+    // with SpendExecuted.request and copies the request memo (the nonce) into the event, which the main path checks.
+    return "Spend request account is closed (v2 closes it on approval); a co-signed payment must carry the nonce as its memo";
+  }
   let r: ReturnType<typeof decodeRequest>;
   try {
     r = decodeRequest(request, data);
@@ -96,6 +100,10 @@ export async function verifyLeashPayment(sig: string, terms: IssuedTerms, opts: 
     match = m;
   }
   if (!match) return { ok: false, reason: "No SpendExecuted event matches payTo / amount / nonce" };
+  // T10: when the client names the co-signed request, the event must be for that request (v1 logs have no field)
+  if (opts.request && match.request && match.request !== opts.request) {
+    return { ok: false, reason: "SpendExecuted belongs to a different spend request" };
+  }
 
   const agent = await vaultAgent(match.vault);
   if (!agent) return { ok: false, reason: "Couldn't read the paying vault from chain", retryable: true };

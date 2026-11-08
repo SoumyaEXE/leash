@@ -8,6 +8,8 @@ export interface SpendExecutedEvent {
   amount: bigint;
   memo: Uint8Array | null;
   via: string;
+  /** v2 (T10): the SpendRequest an owner approved, null for autonomous payments and v1 logs */
+  request: string | null;
   ts: number;
 }
 
@@ -27,6 +29,7 @@ export function spendExecutedEvents(logs: readonly string[]): SpendExecutedEvent
       amount: e.data.amount,
       memo: e.data.memo,
       via: e.data.via,
+      request: e.data.request ? e.data.request.toBase58() : null,
       ts: e.data.ts,
     });
   }
