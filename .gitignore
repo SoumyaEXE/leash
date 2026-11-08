@@ -25,3 +25,7 @@ apps/web/data/
 
 # staged npm package (packages/sdk/scripts/stage-public.mjs)
 .publish/
+
+.vercel
+.env*
+!.env.example
