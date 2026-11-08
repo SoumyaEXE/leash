@@ -140,7 +140,7 @@ Each fixed row says how. The table changes only when a fix is merged and, for pr
 | More Ed25519 shapes: garbage signature, `num_sigs = 2`, precompile not adjacent, out-of-bounds offsets, `terms.vault ≠ vault`, expired terms | Tests | **fixed on main (Nov 7)**: all of these, plus another cluster/program/vault/mint, a re-opened vault, invalid intent and a replayed nonce |
 | `request_spend` while paused, zero, over cap, via mandate, budget exceeded | Tests | **fixed on main (Nov 7)**: `request_spend_refusals` |
 | SDK only has a layout test (58 checks vs the IDL) | Integration tests against LiteSVM/Surfpool: spend allowed/blocked, request → approve, activity parsing | partly fixed on main (Nov 7): 83 `node:test` tests (IDL conformance, the program's mandate-message vectors, activity forgery, the client against an in-memory connection). Still open: integration against LiteSVM/Surfpool |
-| No CI | GitHub Actions: `anchor build --arch v0`, `cargo test -p leash`, `pnpm -r typecheck`, SDK tests on every push | added, not yet run: `.github/workflows/ci.yml` (typecheck, SDK tests, `anchor build --arch v0`, committed-IDL check, `cargo test -p leash`). The repo hasn't been pushed, so the workflow has never run |
+| No CI | GitHub Actions: `anchor build --arch v0`, `cargo test -p leash`, `pnpm -r typecheck`, SDK tests on every push | **fixed (Nov 7)**: `.github/workflows/ci.yml` (typecheck, SDK tests, `anchor build --arch v0`, committed-IDL check, `cargo test -p leash`) runs on every push and is green |
 
 ### SDK
 

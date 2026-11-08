@@ -116,8 +116,8 @@ pnpm --filter @leash/sdk test
 and event layout against `src/idl/leash.json` (copied from `anchor build` by `pnpm sdk:sync-idl`) using an
 independent IDL-driven codec. `test/mandate.test.ts` uses the program's own message vectors. `test/client.test.ts`
 runs the client against an in-memory connection; there are no LiteSVM/Surfpool integration tests yet. CI
-(`.github/workflows/ci.yml`) also fails if the committed IDL differs from what the program builds; the workflow is
-added but has not run yet (the repo hasn't been pushed).
+(`.github/workflows/ci.yml`) also fails if the committed IDL differs from what the program builds; the workflow runs
+on every push and is green.
 
 The IDL in `src/idl/` is the v2 program's, which is the one deployed on devnet since Nov 7. Vaults created by the v1
 program (204 bytes, `LEGACY_VAULT_ACCOUNT_SIZE`) can't be loaded: `isLegacyVaultAccount` detects them and

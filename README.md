@@ -187,7 +187,8 @@ pnpm --filter @leash/mcp build && claude mcp add leash -- node packages/mcp/dist
 ```
 
 CI (`.github/workflows/ci.yml`: typecheck, SDK tests, `anchor build --arch v0`, committed-IDL check,
-`cargo test -p leash`) is added but has not run yet: the repo hasn't been pushed.
+`cargo test -p leash`) runs on every push to GitHub and is green: both jobs pass, including a clean `anchor build`
+whose IDL matches the committed one and the 81 program tests.
 
 Public devnet rate-limits hard. Put a dedicated devnet RPC (Helius/Triton free tier) in `SOLANA_RPC_URL` and keep
 `NEXT_PUBLIC_SOLANA_RPC_URL=proxy`: the browser then talks to `/api/rpc` and the provider key stays server-side.

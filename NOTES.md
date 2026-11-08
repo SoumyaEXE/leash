@@ -150,7 +150,8 @@ Specs live in the planning kit (`../leash-solana-hackathon/docs/`). Anything her
   (`pnpm --filter @leash/sdk test`); x402-servers 18; agent 27; web API 20
   (`pnpm exec tsx --test "apps/web/app/api/_lib/*.test.ts"` from the repo root). Not tested by name: `Overflow`,
   `RequestVaultMismatch`.
-- `.github/workflows/ci.yml` is added but has **not run yet**: the repo is private and not pushed.
+- `.github/workflows/ci.yml` runs on every push (GitHub Actions). First runs Nov 7: both jobs green, the program job
+  rebuilt the program from scratch, matched the committed IDL and passed `cargo test -p leash`.
 
 ### Deviations from `docs/04` / `docs/11` and the SECURITY.md plan
 - **T3 rolling cap:** 25 hourly buckets (`spent_buckets`, plus `auto_buckets` for T9), not the two-bucket sliding
