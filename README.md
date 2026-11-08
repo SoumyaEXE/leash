@@ -3,6 +3,10 @@
 > **Your agent will get prompt-injected. Your money won't move anywhere you didn't sign for.**
 >
 > Built at the **MLH Solana Hackathon** (Nov 6–8, 2026). Devnet only. Not audited. Threat model: [SECURITY.md](SECURITY.md).
+>
+> **Site:** [leash-wine.vercel.app](https://leash-wine.vercel.app). Its `/demo` replays real devnet runs recorded on Nov 8 (real
+> transactions and explorer links); to run it live, see [Run it](#run-it). **SDK:**
+> [`@soumyaexe/leash-sdk`](https://www.npmjs.com/package/@soumyaexe/leash-sdk) on npm.
 
 ## Timeline disclosure
 
